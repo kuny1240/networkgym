@@ -6,7 +6,7 @@ from network_gym_client import load_config_file
 from network_gym_client import Env as NetworkGymEnv
 
 client_id = 0
-env_name = "nqos_split"
+env_name = "network_slicing"
 config_json = load_config_file(env_name)
 config_json["rl_config"]["agent"] = "random"
 # Create the environment

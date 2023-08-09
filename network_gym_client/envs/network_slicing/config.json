@@ -54,7 +54,7 @@
   
   "rl_config":{
     "agent": "",
-    "reward_type" : ""
+    "reward_type" : "default"
   },
 
   "rl_config_option_list":
