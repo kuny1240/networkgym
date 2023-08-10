@@ -27,7 +27,7 @@
       },
       "app_and_measurement_start_time_ms": 1000,
       "transport_protocol": "udp",
-      "udp_poisson_arrival": false,
+      "udp_poisson_arrival": true,
       "min_udp_rate_per_user_mbps": 2,
       "max_udp_rate_per_user_mbps": 2,
       "respond_action_after_measurement": true,
@@ -60,7 +60,7 @@
   "rl_config_option_list":
   {
     "agent": [""],
-    "reward_type" : [""]
+    "reward_type" : ["default"]
   },
 
   "action_template":{
