@@ -1,6 +1,7 @@
 #Copyright(C) 2023 Intel Corporation
 #SPDX-License-Identifier: Apache-2.0
 #File : network_gym_client_demo.py
+import numpy as np
 
 from network_gym_client import load_config_file
 from network_gym_client import Env as NetworkGymEnv
@@ -8,7 +9,7 @@ from network_gym_client import Env as NetworkGymEnv
 client_id = 0
 env_name = "network_slicing"
 config_json = load_config_file(env_name)
-config_json["rl_config"]["agent"] = "random"
+config_json["rl_config"]["agent"] = "static_agent"
 # Create the environment
 env = NetworkGymEnv(client_id, config_json) # make a network env using pass client id and configure file arguements.
 
@@ -17,7 +18,8 @@ obs, info = env.reset()
 
 for step in range(num_steps):
 
-    action = env.action_space.sample()  # agent policy that uses the observation and info
+    # action = env.action_space.sample()  # agent policy that uses the observation and info
+    action = np.array([0.33, 0.33, 0.33])
     obs, reward, terminated, truncated, info = env.step(action)
 
     # If the environment is end, exit
