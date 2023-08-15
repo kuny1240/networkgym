@@ -1,5 +1,6 @@
 /wandb
 /runs
 /models
+/network_venv
 *.pyc
 network_gym_accounts.csv

@@ -25,6 +25,7 @@ class Adapter(network_gym_client.adapter.Adapter):
         self.end_ts = 0
 
         self.num_users = 0
+        self.eval_steps = 0 
         for item in self.config_json['env_config']['slice_list']:
             self.num_users += item['num_users']
         self.config_json['env_config']['num_users'] = self.num_users
@@ -72,7 +73,7 @@ class Adapter(network_gym_client.adapter.Adapter):
         obs_space = None
 
         obs_space =  spaces.Box(low=0, high=1000,
-                                            shape=(self.num_features,len(self.config_json['env_config']['slice_list']),), dtype=np.float32)
+                                            shape=(self.num_features*len(self.config_json['env_config']['slice_list']),), dtype=np.float32)
         return obs_space
     
     
@@ -111,8 +112,7 @@ class Adapter(network_gym_client.adapter.Adapter):
         slice_ids = np.array(df[df["name"] == "slice_id"]["value"].to_list()[0], dtype=np.int64)
         owds = np.array(df[(df["cid"] == "LTE") & (df["name"] == "owd")]["value"].to_list()[0])
         max_owds = np.array(df[(df["cid"] == "LTE") & (df["name"] == "max_owd")]["value"].to_list()[0])      
-        
-
+        breakpoint()
         
         # First, ensure all arrays have the same length
         try:
@@ -143,13 +143,19 @@ class Adapter(network_gym_client.adapter.Adapter):
                                   np.mean(delay_violation_rates[slice_ids == i])/100, 
                                   np.max(max_owds[slice_ids == i])/self.config_json['env_config']['qos_requirement']['delay_bound_ms'], 
                                   np.mean(owds[slice_ids == i])/self.config_json['env_config']['qos_requirement']['delay_bound_ms']])
+            # obs_slice = np.array([np.sum(rates[slice_ids == i]), 
+            #                       np.sum(rb_usages[slice_ids == i]), 
+            #                       np.mean(delay_violation_rates[slice_ids == i]), 
+            #                       np.max(max_owds[slice_ids == i]), 
+            #                       np.mean(owds[slice_ids == i])])
             obs[:, i] = obs_slice
         
         
+        # breakpoint()
         # Convert the final dataframe to numpy array
-        result = obs.reshape(-1)
+        obs = obs.reshape(-1)
 
-        return result
+        return obs
     
     def get_observation(self, df):
         """Prepare observation for network_slicing env.
@@ -183,9 +189,9 @@ class Adapter(network_gym_client.adapter.Adapter):
         # you may also check other constraints for action... e.g., min, max.
         
         if np.sum(action) > 1: # Illegal action
-            action = np.exp(action)/sum(np.exp(action))
+            action = np.exp(action)/np.sum(np.exp(action))
             
-        scaled_action= np.interp(action, (0, 1), (0, self.rbg_num/self.num_slices))
+        scaled_action= np.interp(action, (0, 1), (0, self.rbg_num))
         scaled_action = np.round(scaled_action).astype(int) # force it to be an interger.
 
         # you can add more tags
@@ -196,16 +202,16 @@ class Adapter(network_gym_client.adapter.Adapter):
 
         tags["rb_type"] = "D"# dedicated RBG
         # this function will convert the action to a nested json format
-        policy1 = self.get_nested_json_policy('rb_allocation', tags, np.zeros(len(scaled_action)), 'slice')
+        policy1 = self.get_nested_json_policy('rb_allocation', tags, scaled_action, 'slice')
         tags["rb_type"] = "P"# prioritized RBG
-        policy2 = self.get_nested_json_policy('rb_allocation', tags, scaled_action, 'slice')
+        policy2 = self.get_nested_json_policy('rb_allocation', tags, np.zeros(len(scaled_action)), 'slice')
         
         tags["rb_type"] = "S"# shared RBG
-        policy3 = self.get_nested_json_policy('rb_allocation', tags, np.ones(len(scaled_action))*self.rbg_num, 'slice')
+        policy3 = self.get_nested_json_policy('rb_allocation', tags, np.ones(len(scaled_action))*0, 'slice')
 
         policy = policy1 + policy2 + policy3
 
-        # print('Action --> ' + str(policy))
+        print('Action --> ' + str(policy))
         return policy
     
 
@@ -259,6 +265,7 @@ class Adapter(network_gym_client.adapter.Adapter):
             
         # TODO: Detailed reward function in the future
         # print("[WARNING] reward fucntion not defined yet")
+        
         keys = [
             "rx/tx_rate_ratio",
             "rb_usage",
@@ -274,17 +281,6 @@ class Adapter(network_gym_client.adapter.Adapter):
                     self.wandb_log_buffer = dict_slice
                 else:
                     self.wandb_log_buffer.update(dict_slice)
-        # if not self.wandb_log_buffer:
-        #     self.wandb_log_buffer = dict_slice_load
-        # else:
-        #     self.wandb_log_buffer.update(dict_slice_load)
-        # self.wandb_log_buffer.update(dict_owd)
-        # self.wandb_log_buffer.update(dict_slice_lte_max_rate)
-        # self.wandb_log_buffer.update(dict_lte_slice_rate)
-        # self.wandb_log_buffer.update(dict_lte_qos_slice_rate)
-
-        # self.wandb_log_buffer.update(dict_slice_delay_violation)
-        # self.wandb_log_buffer.update(dict_slice_lte_rb_usage)
         
         self.wandb_log_buffer.update({"reward": reward, "avg_delay": per_slice_mean_delay.mean(), "max_delay": per_slice_max_delay.max()})
         print(f"reward: {reward}, avg_delay: {per_slice_mean_delay.mean()}, max_delay: {per_slice_max_delay.max()}")

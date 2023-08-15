@@ -4,6 +4,7 @@
 
 import sys
 import wandb
+import hashlib
 import numpy as np
 import pandas as pd
 import json
@@ -36,8 +37,8 @@ class Adapter:
 
         self.wandb.init(
             # name=rl_alg + "_" + str(config_json['env_config']['num_users']) + "_LTE_" +  str(config_json['env_config']['LTE']['resource_block_num']),
-            #name=rl_alg + "_" + str(config_json['env_config']['num_users']) + "_" +  str(config_json['env_config']['LTE']['resource_block_num']),
-            name=rl_alg,
+            # name=rl_alg + "_" + str(config_json['env_config']['num_users']) + "_" +  str(config_json['env_config']['LTE']['resource_block_num']),
+            name=rl_alg + "_" + hashlib.md5(json.dumps(config).encode('utf-8')).hexdigest(),
             project="network_gym_client",
             config=config,
             sync_tensorboard=True,  # auto-upload sb3's tensorboard metrics

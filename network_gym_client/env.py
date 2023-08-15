@@ -223,8 +223,8 @@ class Env(gym.Env):
         #Get reward
         reward = self.adapter.get_reward(df_list)
 
-
-        self.adapter.wandb_log()
+        if self.current_step > 1:
+            self.adapter.wandb_log()
 
         #3.) Check end of Episode
         truncated = self.current_step >= self.steps_per_episode
