@@ -1,9 +1,9 @@
-# Network Gym Client
+# NetworkGym Client
 
-📋 **[NetworkGym docs Website](https://intellabs.github.io/networkgym/index.html)**
+📋 **[NetworkGym docs Website](https://intellabs.github.io/networkgym)**
 
-Network Gym Client is a python-based client software for Network Gym: AI/ML-enabled Multi-Access Network Simulation-as-a-Service Framework. The Client connects to the Server/Environment remotely to train the agent.
- At present, Network Gym Client supports three environments: `nqos_split`, `qos_steer`, and `network_slicing`.
+The NetworkGym Client stands as a Python-centric client library created for NetworkGym, an innovative Simulation-as-a-Service framework crafted to democratize network AI research and development. This Client establishes a remote connection to the NetworkGym Service (Server/Environment) hosted on Intel vLab, facilitating agent training.
+At present, Network Gym Client supports three environments: `nqos_split`, `qos_steer`, and `network_slicing`.
 
 
 ```mermaid
@@ -116,7 +116,7 @@ Host mlwins
 
 - Start the demo client using the following command:
 ```
-python3 network_gym_client_demo.py
+python3 start_client_demo.py
 ```
 - When the program terminates, visualize the output using the returned WanDB website. If the python program stops after sending out the start request as shown in the following, check if the port fowarding is broken.
 ```
@@ -129,7 +129,7 @@ python3 network_gym_client_demo.py
 
 ```
 📦 NetworkGym
-┣ 📜 network_gym_client_demo.py
+┣ 📜 start_client_demo.py
 ┗ 📂 network_gym_client
   ┣ 📜 adapter.py (➡️ WanDB)
   ┣ 📜 common_config.json
@@ -141,13 +141,13 @@ python3 network_gym_client_demo.py
       ┗ 📜 config.json
 ```
 
-- Excuting the 📜 network_gym_client_demo.py file will start a new simulation. To change the environment, modify the `env_name` parameter, e.g., `'nqos_split'`, `'qos_steer'`, or `'network_slicing'`. The 📜 common_config.json is used in all environments. Depends on the selected environments, the 📜 config.json and 📜 adapter.py in the [ENV_NAME] folder will be loaded. The 📜 adapter.py helps preparing observations, rewards and actions for the selected environment.
-- The 📜 network_gym_client_demo.py create a Network Gym environment, which remotely connects to the ns-3 based Network Gym Simualtor (hosted in vLab machine) using the 📜 northbound_interface. 📜 network_gym_client_demo.py also uses random samples from the action space to interact with the Network Gym environment. The results are synced to ➡️ WanDB database. We provide the following code snippet from the 📜 network_gym_client_demo.py as an example:
+- Excuting the 📜 start_client_demo.py file will start a new simulation. To change the environment, modify the `env_name` parameter, e.g., `'nqos_split'`, `'qos_steer'`, or `'network_slicing'`. The 📜 common_config.json is used in all environments. Depends on the selected environments, the 📜 config.json and 📜 adapter.py in the [ENV_NAME] folder will be loaded. The 📜 adapter.py helps preparing observations, rewards and actions for the selected environment.
+- The 📜 start_client_demo.py create a Network Gym environment, which remotely connects to the ns-3 based Network Gym Simualtor (hosted in vLab machine) using the 📜 northbound_interface. 📜 start_client_demo.py also uses random samples from the action space to interact with the Network Gym environment. The results are synced to ➡️ WanDB database. We provide the following code snippet from the 📜 start_client_demo.py as an example:
 
 ```python
 #Copyright(C) 2023 Intel Corporation
 #SPDX-License-Identifier: Apache-2.0
-#File : network_gym_client_demo.py
+#File : start_client_demo.py
 
 from network_gym_client import load_config_file
 from network_gym_client import Env as NetworkGymEnv
@@ -253,17 +253,13 @@ for step in range(num_steps):
 
   "rl_config":{//see the following for config options 
     "agent": "",
-    "policy": "MlpPolicy",
-    "train": true,
-    "reward_type" : "delay"
+    "reward_type" : "utility"
   },
 
   "rl_config_option_list"://do not change this list, it provides the available inputs for the rl_config
   {
     "agent": [""],// set to "" will disable agent, i.e., use the system's default algorithm for offline data collection
-    "policy": ["MlpPolicy"],
-    "train": [true, false],//set to true to train model, set to false to test pretrained model.
-    "reward_type" : ["delay", "throughput"]
+    "reward_type" : ["utility"]
   },
 
   "action_template":{//do not change

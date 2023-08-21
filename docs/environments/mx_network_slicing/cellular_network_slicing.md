@@ -15,7 +15,7 @@ Within each slice, the agent can designate resources as dedicated, prioritized, 
 | ----- | ---- |
 | Observation Space |  `Box(0.0, Inf, (5, N,), float32)` |
 | Action Space | `Box(0.0, 1.0, (N,), float32)`  |
-| Arguments | [config.json](https://github.com/IntelLabs/gma/tree/network-gym/network_gym_client/envs/network_slicing/config.json)  |
+| Arguments | [config.json](https://github.com/IntelLabs/networkgym/network_gym_client/envs/network_slicing/config.json)  |
 | Select Environment | `config_json = load_config_file('network_slicing')` <br> `env = NetworkGymEnv(client_id, config_json)`  |
 
 ## Description
@@ -24,7 +24,7 @@ In the Network Slicing environment, resource scheduling poses as a challenge, wi
 
 ## Prerequisite
 
-Ensure that you have access to the NetworkGym Server on [vLab](https://registration.intel-research.net/) machines and have downloaded the [NetworkGymClient](https://github.com/IntelLabs/gma/tree/network-gym).
+Ensure that you have access to the NetworkGym Server on [vLab](https://registration.intel-research.net/) machines and have downloaded the [NetworkGymClient](https://github.com/IntelLabs/networkgym).
 
 ## Observation Space
 
@@ -47,6 +47,7 @@ The observation space is represented by a multidimensional array (`ndarray`) wit
 ```{eval-rst}
 The Observation Space can be customized in the :meth:`network_gym_client.envs.network_slicing.Adapter.get_observation` function.
 ```
+See [Customizing Observation and Reward](../../tutorials/customizing_observation_and_reward.md) for more details.
 ````
 
 ```{tip}
@@ -87,12 +88,13 @@ In this formulation, we can adjust the emphasis given to the delay violation rat
 ```{eval-rst}
 The Reward can be customized in the :meth:`network_gym_client.envs.network_slicing.Adapter.get_reward` function.
 ```
+See [Customizing Observation and Reward](../../tutorials/customizing_observation_and_reward.md) for more details.
 ````
 
 ## Arguments
 
 All the network configurable parameters are defined in the JSON files. When the client starts, the JSON files will be loaded and transmitted to the server to configure the environment.
-See the [NetworkGymClient](https://github.com/IntelLabs/gma/tree/network-gym#%EF%B8%8F-configurable-file-format) for more details.
+See the [NetworkGymClient](https://github.com/IntelLabs/networkgym#%EF%B8%8F-configurable-file-format) for more details.
 
 ## Starting State
 The position of the users is assigned by a uniform random value in a 2D plane with configurable (x, y) boundaries. The starting velocity of the users and other parameters can also be configured in the JSON file.

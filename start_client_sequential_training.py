@@ -1,6 +1,6 @@
 #Copyright(C) 2023 Intel Corporation
 #SPDX-License-Identifier: Apache-2.0
-#File : network_gym_client_sequential_training.py
+#File : start_client_sequential_training.py
 
 # In this example, we perform sequential training for two environment sessions.
 # the first session lasts for 3 episodes and the second session lasts for 1 episodes.
@@ -47,12 +47,13 @@ env = NetworkGymEnv(client_id, config_json) # make a network env using pass clie
 normalized_env = NormalizeObservation(env) # normalize the observation
 
 num_steps = 10000
+breakpoint()
 obs, info = normalized_env.reset()
 obs = torch.Tensor(obs)
 agent = SACAgent(state_dim=obs.shape[0], 
                      action_dim=env.action_space.shape[0], 
-                     actor_lr=0.03, 
-                     critic_lr=0.3)
+                     actor_lr=0.0003, 
+                     critic_lr=0.003)
 buffer = ReplayBuffer(max_size=100000, obs_shape=obs.shape[0], n_actions=env.action_space.shape[0])
 epsilon = 1.0
 for step in range(num_steps):
@@ -67,7 +68,7 @@ for step in range(num_steps):
             breakpoint()
     
     # action = env.action_space.sample()  # agent policy that uses the observation and info
-    nxt_obs, reward, terminated, truncated, info = normalized_env.step(np.zeros(len(action)))
+    nxt_obs, reward, terminated, truncated, info = normalized_env.step(action=action)
     buffer.store(obs, action, reward, nxt_obs, truncated)
     obs = nxt_obs
     obs = torch.Tensor(obs)
@@ -85,7 +86,6 @@ for step in range(num_steps):
     if truncated:
         obs, info = normalized_env.reset()
         obs = torch.Tensor(obs)
-        
-    epsilon = max(epsilon*0.99, 0.01)
+        epsilon = max(epsilon*0.99, 0.01)
 
 

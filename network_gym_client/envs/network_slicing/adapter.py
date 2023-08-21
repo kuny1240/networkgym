@@ -83,18 +83,18 @@ class Adapter(network_gym_client.adapter.Adapter):
         
         0               ap_id
         1     delay_violation
-        2             max_owd
-        3             max_owd
+        2             max_owd/LTE
+        3             max_owd/ALL
         4            max_rate
         5      measurement_ok
         6       missed_action
-        7                 owd
-        8                 owd
+        7                 owd/LTE
+        8                 owd/ALL
         9         qos_marking
-        10           qos_rate
-        11           qos_rate
-        12               rate
-        13               rate
+        10           qos_rate/LTE
+        11           qos_rate/ALL
+        12               rate/LTE
+        13               rate/ALL
         14           rb_usage
         15           slice_id
         16      traffic_ratio
@@ -112,7 +112,7 @@ class Adapter(network_gym_client.adapter.Adapter):
         slice_ids = np.array(df[df["name"] == "slice_id"]["value"].to_list()[0], dtype=np.int64)
         owds = np.array(df[(df["cid"] == "LTE") & (df["name"] == "owd")]["value"].to_list()[0])
         max_owds = np.array(df[(df["cid"] == "LTE") & (df["name"] == "max_owd")]["value"].to_list()[0])      
-        breakpoint()
+        # breakpoint()
         
         # First, ensure all arrays have the same length
         try:
@@ -151,7 +151,7 @@ class Adapter(network_gym_client.adapter.Adapter):
             obs[:, i] = obs_slice
         
         
-        # breakpoint()
+        breakpoint()
         # Convert the final dataframe to numpy array
         obs = obs.reshape(-1)
 
@@ -163,11 +163,14 @@ class Adapter(network_gym_client.adapter.Adapter):
         This function should return the same number of features defined in the :meth:`get_observation_space`.
 
         Args:
-            df (pandas.DataFrame): the network stats measurements
+            df (pd.DataFrame): the network stats measurements
 
         Returns:
             spaces: observation spaces
         """
+        
+        if not df.empty:
+            self.end_ts = int(df['end_ts'][0])
 
         observation = self.df_to_observation(df)
         
@@ -188,12 +191,14 @@ class Adapter(network_gym_client.adapter.Adapter):
             sys.exit("The action size: " + str(action.size()) +" does not match with the number of slices:" + self.num_slices)
         # you may also check other constraints for action... e.g., min, max.
         
-        if np.sum(action) > 1: # Illegal action
+        if np.sum(action) >= 1: # Illegal action
             action = np.exp(action)/np.sum(np.exp(action))
             
         scaled_action= np.interp(action, (0, 1), (0, self.rbg_num))
-        scaled_action = np.round(scaled_action).astype(int) # force it to be an interger.
-
+        scaled_action = np.floor(scaled_action).astype(int) # force it to be an interger.
+        if np.sum(scaled_action) > 25:
+            breakpoint()
+        
         # you can add more tags
         tags = {}
         tags["end_ts"] = self.end_ts
@@ -202,16 +207,16 @@ class Adapter(network_gym_client.adapter.Adapter):
 
         tags["rb_type"] = "D"# dedicated RBG
         # this function will convert the action to a nested json format
-        policy1 = self.get_nested_json_policy('rb_allocation', tags, scaled_action, 'slice')
+        policy1 = self.get_nested_json_policy('rb_allocation', tags,scaled_action , 'slice')
         tags["rb_type"] = "P"# prioritized RBG
-        policy2 = self.get_nested_json_policy('rb_allocation', tags, np.zeros(len(scaled_action)), 'slice')
+        policy2 = self.get_nested_json_policy('rb_allocation', tags, np.zeros(len(scaled_action)) , 'slice')
         
         tags["rb_type"] = "S"# shared RBG
-        policy3 = self.get_nested_json_policy('rb_allocation', tags, np.ones(len(scaled_action))*0, 'slice')
+        policy3 = self.get_nested_json_policy('rb_allocation', tags, np.ones(len(scaled_action))*self.config_json['env_config']['LTE']['resource_block_num']//4, 'slice')
 
         policy = policy1 + policy2 + policy3
 
-        print('Action --> ' + str(policy))
+        print('Action --> ' + str(scaled_action))
         return policy
     
 

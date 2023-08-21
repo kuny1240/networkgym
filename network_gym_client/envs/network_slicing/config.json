@@ -1,26 +1,26 @@
 {
   "env_config":{
       "type": "env-start",
-      "steps_per_episode": 10,
-      "episodes_per_session": 2,
+      "steps_per_episode": 30,
+      "episodes_per_session": 100,
       "random_seed": 2,
       "downlink": true,
       "max_wait_time_for_action_ms": -1,
       "enb_locations":{
-        "x":40,
-        "y":0,
+        "x":60,
+        "y":5,
         "z":3
       },
       "ap_locations":[
       ],
       "slice_list":[
-        {"num_users":10,"dedicated_rbg":0,"prioritized_rbg":13,"shared_rbg":25},
-        {"num_users":30,"dedicated_rbg":0,"prioritized_rbg":12,"shared_rbg":25}
+        {"num_users":10,"dedicated_rbg":0,"prioritized_rbg":12,"shared_rbg":25},
+        {"num_users":20,"dedicated_rbg":0,"prioritized_rbg":13,"shared_rbg":25}
       ],
       "user_left_right_speed_m/s": 1,
       "user_location_range":{
         "min_x":0,
-        "max_x":80,
+        "max_x":120,
         "min_y":0,
         "max_y":10,
         "z":1.5
@@ -29,7 +29,7 @@
       "transport_protocol": "udp",
       "udp_poisson_arrival": true,
       "min_udp_rate_per_user_mbps": 2,
-      "max_udp_rate_per_user_mbps": 2,
+      "max_udp_rate_per_user_mbps": 4,
       "respond_action_after_measurement": true,
       "qos_requirement": {
         "delay_bound_ms": 100
