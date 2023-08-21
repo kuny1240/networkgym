@@ -1,12 +1,14 @@
 # NetworkGym Client
 
-📋 **[NetworkGym docs Website](https://intellabs.github.io/networkgym)**
+📋 **[NetworkGym Docs Website](https://intellabs.github.io/networkgym)**
 
-The NetworkGym Client stands as a Python-centric client library created for NetworkGym, an innovative Simulation-as-a-Service framework crafted to democratize network AI research and development. This Client establishes a remote connection to the NetworkGym Service (Server/Environment) hosted on Intel vLab, facilitating agent training.
+📧 **[Contact Us](mailto:netaigym@gmail.com)**
+
+The NetworkGym Client stands as a Python-centric client library created for NetworkGym, an innovative Simulation-as-a-Service framework crafted to democratize network AI research and development. This Client establishes a remote connection to the NetworkGym Server/Environment hosted on Intel vLab, facilitating agent training.
 At present, Network Gym Client supports three environments: `nqos_split`, `qos_steer`, and `network_slicing`.
 
 
-```mermaid
+```{mermaid}
 flowchart TB
 
 subgraph network_gym_server
@@ -14,10 +16,10 @@ northbound <--> southbound[[southbound_interface]]
 end
 
 subgraph network_gym_env
-southbound_interface
-simulator
-emulator
-testbed 
+southbound_interface <--> configure
+southbound_interface <--> simulator
+southbound_interface <-..-> emulator
+southbound_interface <-..-> testbed
 end
 
 agent <--> gymnasium.env
@@ -31,33 +33,25 @@ adapter
 northbound_interface[[northbound_interface]]
 end
 
-
-
 adapter --policy--> northbound_interface
 northbound_interface --network_stats--> adapter
 
-
 northbound_interface --env_config,policy--> northbound[[northbound_interface]]
 northbound --network_stats--> northbound_interface
-
-
-
 
 southbound --env_config,policy--> southbound_interface[[southbound_interface]]
 southbound_interface --network_stats--> southbound
 
 ```
-
-## Class Structure
+## 📚 Class Structure
 
 This repository includes the network_gym_client components. The network_gym_server and network_gym_env components are hosted in our vLab machines. After cloning this repository, users can launch the network_gym_client to remotely connects to the newtork_gym_server and newtork_gym_env via the northbound interface.
 
-- main()
-  - network_gym_client
-    - gymnasium.env: *a customized gymnasium environment that communicates with the agent.*
-    - adapter: *transform the network stats measurements to obs and reward; translate action to policy that can be applied to the network.*
-    - northbound_interface: *communicates network confiugration, network stats and policy between client and network_gym server/environment.*
-  - agent: any gymnasium compatible agent.
+- network_gym_client
+  - gymnasium.env: *a customized gymnasium environment that communicates with the agent.*
+  - adapter: *transform the network stats measurements to obs and reward; translate action to policy that can be applied to the network.*
+  - northbound_interface: *communicates network confiugration, network stats and policy between client and network_gym server/environment.*
+- agent: any gymnasium compatible agent.
 
 
 ## ⌛ Installation:
@@ -107,7 +101,7 @@ Host mlwins
   LocalForward 8088 localhost:8088
 ```
 
-## 🚀 Start Network Gym Client:
+## 🚀 Start NetworkGym Client:
 
 - Update the common configuration file [common_config.json](network_gym_client/common_config.json). Go to the ⚙️ Configurable File Format Section for more details.
 
@@ -121,8 +115,8 @@ python3 start_client_demo.py
 - When the program terminates, visualize the output using the returned WanDB website. If the python program stops after sending out the start request as shown in the following, check if the port fowarding is broken.
 ```
 ...
-[YOUR_ALGORITHM_NAME]-0 started
-[YOUR_ALGORITHM_NAME]-0 Sending GMASim Start Request…
+test-0 started
+test-0 Sending GMASim Start Request…
 ```
 
 ## 📁 File Structure:
@@ -212,8 +206,14 @@ for step in range(num_steps):
         {"num_users":5,"dedicated_rbg":5,"prioritized_rbg":6,"shared_rbg":7},
         {"num_users":5,"dedicated_rbg":0,"prioritized_rbg":0,"shared_rbg":100}
       ],
-      "user_left_right_speed_m/s": 1,
-      "user_location_range":{//initially, users will be randomly deployed within this x, y range. if user_left_right_speed_m > 0, the user will move left and right within this boundary.
+      "user_random_walk":{ // configure random walk model with Distance mode. https://www.nsnam.org/docs/release/3.16/doxygen/classns3_1_1_random_walk2d_mobility_model.html
+        "min_speed_m/s": 1, //A random variable used to pick the min random walk speed (m/s). Set min and max speed to 0 to disable random walk
+        "max_speed_m/s": 2, //A random variable used to pick the max random walk speed (m/s). Set min and max speed to 0 to disable random walk
+        "min_direction_gradients": 0.0, //A random variable used to pick the min random walk direction (gradients). [Min=0.0|Max=6.283184]
+        "max_direction_gradients": 6.283184, //A random variable used to pick the max random walk direction (gradients). [Min=0.0|Max=6.283184]
+        "distance_m": 3 //change current direction and speed after moving for this distance (m)
+      },
+      "user_location_range":{//initially, users will be randomly deployed within this x, y range. if user_random_walk_max_speed_m/s > 0, the user will random walk within this boundary.
         "min_x":0,
         "max_x":80,
         "min_y":0,

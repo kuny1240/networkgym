@@ -4,28 +4,36 @@ title: Quickstart
 
 # Quickstart
 
-## Accessing the NetworkGym Testbed via vLab
-![network_gym_vlab](network_gym_vlab.png)
-
-We provide access to NetworkGymServer and NetworkGymEnv through **vLab machines** [(Requst Access)](https://registration.intel-research.net/), facilitating collaboration with MLWiNS/RINGs universities. The NetworkGym Northbound Interface allows a NetworkGymClient to establish a connection with the NetworkGym Environment, either through the public internet or Intel's internal network. In case of any access issues, feel free to reach out to us at [netaigym@gmail.com](mailto:netaigym@gmail.com).
+## Accessing the NetworkGym Service via vLab
+```{figure} ../tutorials/network_gym_overview.png
+---
+width: 40%
+---
+```
+We provide access to NetworkGym Server/Environment through **vLab machines** [(Requst Access)](https://registration.intel-research.net/), facilitating collaboration with MLWiNS/RINGs universities. The NetworkGym Northbound Interface allows a NetworkGym Client to establish a connection with the NetworkGym Environment, either through the public internet or Intel's internal network. In case of any access issues, feel free to reach out to us at [netaigym@gmail.com](mailto:netaigym@gmail.com).
 
 Additionally, we plan to launch NetworkGym Sim-aaS via **Intel DevCloud**, making it available to all Intel developers.
-Meanwhile, we are actively collaborating with the research community to enhance NetworkGymSim with new use-cases and capabilities, such as 5G/O-RAN, distributed computing, RAN energy saving, predictive QoS, and more.
+Meanwhile, we are actively collaborating with the research community to enhance NetworkGym Simulator with new use-cases and capabilities, such as 5G/O-RAN, distributed computing, RAN energy saving, predictive QoS, and more.
 
 ## Basic Usage
-![network_gym_workflow](network_gym_workflow.png)
 
-Once you have gained access to vLab NetworkGym Server, you can begin by downloading the client software, [NetworkGymClient](https://github.com/IntelLabs/networkgym), to initiate your simulations.
+```{figure} network_gym_workflow.png
+---
+width: 100%
+---
+```
 
-```{admonition} ▶️ Upon starting the NetworkGymClient, the following series of steps occur:
-1. The NetworkGymClient initiates the process by sending a JSON configuration file to the Server, prompting the launch of an ns-3 simulation.
+Once you have gained access to vLab machines, you can begin by downloading the [Client](https://github.com/IntelLabs/networkgym) to initiate your simulations.
+
+```{admonition} ▶️ Upon starting the Client, the following series of steps occur:
+1. The Client initiates the process by sending a JSON configuration file to the Server, prompting the launch of an ns-3 simulation.
 ```
 
 ```{admonition} 🔁 During the simulation, the process repeats as follows:
 2. The Simulator collects measurement metrics and communicates them to the Server.
-    - The Server forwards the measurements to the NetworkGymClient using the NetworkGym Open API.
+    - The Server forwards the measurements to the Client using the NetworkGym NorhtBound (NB) Interface.
 3. An Algorithm Agent, which could be AI or non-AI, computes an action based on the received measurements and stores relevant data in WandB.
-4. The NetworkGymClient transmits the computed action to the Simulator through the NetworkGym Open API, enabling the simulation to continue with the new action.
+4. The Client transmits the computed action to the Simulator through the NetworkGym NB and SouthBound (SB) interface, enabling the simulation to continue with the new action.
 ```
 
 ```{admonition} ⏹️ When the NetworkGym or the simulation concludes:
@@ -83,9 +91,8 @@ First, the configuration file is loaded using the `load_config_file` function by
 
 Next, the agent performs an action in the environment, `step`. As a result, the agent receives a new observation from the updated environment along with a reward for taking the action. One such action-observation exchange is referred to as a timestep.
 
-In NetworkGym, an environment includes multiple episodes. The terminal state for an episode and environment is signaled using the truncated and terminated signals returned by `step`. For example, after a fixed number of timesteps, an episode is ended by issuing a truncated signal. After multiple episodes, the environment terminates with a terminated signal. If `truncated` is `True`, then reset should be called next to restart the episode. If the `terminated` is `True`, then the client needs to restart the environment. See [Handling Time Limits](../tutorials/handling_time_limits.md) for more details.
+In NetworkGym, an environment includes multiple episodes. The terminal state for an episode and environment is signaled using the truncated and terminated signals returned by `step`. For example, after a fixed number of timesteps, an episode is ended by issuing a truncated signal. After multiple episodes, the environment terminates with a terminated signal. If `truncated` is `True`, then reset should be called next to restart the episode. If the `terminated` is `True`, then the client needs to restart the environment. For scenarios where sequential training is essential, the agent can initiate multiple environment sessions in succession. Further insights into effectively managing time constraints can be found in the [Handling Time Limits](../tutorials/handling_time_limits.md). An illustrative example is presented below.
 
-An example is provided in the following.
 ```{mermaid}
 sequenceDiagram
 
