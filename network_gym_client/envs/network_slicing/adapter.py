@@ -173,7 +173,7 @@ class Adapter(network_gym_client.adapter.Adapter):
         Returns:
             spaces: observation spaces
         """
-        
+        #print (df)
         if not df.empty:
             self.end_ts = int(df['end_ts'][0])
 
@@ -219,7 +219,7 @@ class Adapter(network_gym_client.adapter.Adapter):
         tags["rb_type"] = "S"# shared RBG
         policy3 = self.get_nested_json_policy('rb_allocation', tags, np.ones(len(scaled_action))*self.config_json['env_config']['LTE']['resource_block_num']//4, 'slice')
 
-        policy = policy1 + policy2 + policy3
+        policy = [policy1, policy2, policy3]
 
         # print('Action --> ' + str(scaled_action))
         return policy
