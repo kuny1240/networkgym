@@ -188,7 +188,7 @@ class Env(gym.Env):
         """
         self.current_step += 1
         
-        print("----------| step() at episode:" + str(self.current_ep) + ", step:" + str(self.current_step) + " |----------")
+        # print("----------| step() at episode:" + str(self.current_ep) + ", step:" + str(self.current_step) + " |----------")
 
         #1.) Get action from RL agent and send to network gym server
         if not self.enable_rl_agent or action.size == 0:
@@ -210,7 +210,7 @@ class Env(gym.Env):
         #Get reward
         reward = self.adapter.get_reward(network_stats)
 
-        if self.current_step > 1:
+        if (self.current_step + 1) % 10 == 0:
             self.adapter.wandb_log()
 
         #3.) Check end of Episode

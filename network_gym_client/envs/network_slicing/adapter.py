@@ -25,7 +25,7 @@ class Adapter(network_gym_client.adapter.Adapter):
         self.end_ts = 0
 
         self.num_users = 0
-        self.eval_steps = 0 
+        self.global_steps = 0 
         for item in self.config_json['env_config']['slice_list']:
             self.num_users += item['num_users']
         self.config_json['env_config']['num_users'] = self.num_users
@@ -148,10 +148,15 @@ class Adapter(network_gym_client.adapter.Adapter):
             #                       np.mean(delay_violation_rates[slice_ids == i]), 
             #                       np.max(max_owds[slice_ids == i]), 
             #                       np.mean(owds[slice_ids == i])])
+            
+            # If the max and mean owd are too large, set them to -1
+            if obs_slice[3] > 10:
+                obs_slice[3] = 10
+            if obs_slice[4] > 5:
+                obs_slice[4] = 5
             obs[:, i] = obs_slice
         
         
-        breakpoint()
         # Convert the final dataframe to numpy array
         obs = obs.reshape(-1)
 
@@ -209,14 +214,14 @@ class Adapter(network_gym_client.adapter.Adapter):
         # this function will convert the action to a nested json format
         policy1 = self.get_nested_json_policy('rb_allocation', tags,scaled_action , 'slice')
         tags["rb_type"] = "P"# prioritized RBG
-        policy2 = self.get_nested_json_policy('rb_allocation', tags, np.zeros(len(scaled_action)) , 'slice')
+        policy2 = self.get_nested_json_policy('rb_allocation', tags,np.zeros(len(scaled_action))  , 'slice')
         
         tags["rb_type"] = "S"# shared RBG
         policy3 = self.get_nested_json_policy('rb_allocation', tags, np.ones(len(scaled_action))*self.config_json['env_config']['LTE']['resource_block_num']//4, 'slice')
 
         policy = policy1 + policy2 + policy3
 
-        print('Action --> ' + str(scaled_action))
+        # print('Action --> ' + str(scaled_action))
         return policy
     
 
@@ -232,8 +237,8 @@ class Adapter(network_gym_client.adapter.Adapter):
 
         
         observation = self.df_to_observation(df)
-        alpha = .25
-        gamma = 2
+        alpha = 1
+        gamma = 4
 
         # Pivot the DataFrame to extract "Wi-Fi" and "LTE" values
         # df_pivot = df_owd.pivot_table(index="user", columns="cid", values="value", aggfunc="first")[["Wi-Fi", "LTE"]]
@@ -278,7 +283,8 @@ class Adapter(network_gym_client.adapter.Adapter):
         ]
         slice_key = "slice_id"
         slice_ids = np.array(df[df["name"] == slice_key]["value"].to_list()[0], dtype=np.int64)
-        
+        self.global_steps += 1
+       
         for i, key in enumerate(keys):
             for j in np.unique(slice_ids):
                 dict_slice = {f"{key}_slice_{j}": observation[num_slices*i+j]}
@@ -286,9 +292,9 @@ class Adapter(network_gym_client.adapter.Adapter):
                     self.wandb_log_buffer = dict_slice
                 else:
                     self.wandb_log_buffer.update(dict_slice)
-        
+            
         self.wandb_log_buffer.update({"reward": reward, "avg_delay": per_slice_mean_delay.mean(), "max_delay": per_slice_max_delay.max()})
-        print(f"reward: {reward}, avg_delay: {per_slice_mean_delay.mean()}, max_delay: {per_slice_max_delay.max()}")
+        # print(f"reward: {reward}, avg_delay: {per_slice_mean_delay.mean()}, max_delay: {per_slice_max_delay.max()}")
         return reward
 
     def slice_df_to_dict(self, df, description):

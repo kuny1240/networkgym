@@ -39,7 +39,7 @@ LOG_INTERVAL = 10
 NUM_OF_EVALUATE_EPISODES = 10
 
 
-client_id = 1
+client_id = 0
 env_name = "network_slicing"
 config_json = load_config_file(env_name)
 config_json["rl_config"]["agent"] = "SACAgent"
@@ -52,8 +52,8 @@ num_steps = 9000
 obs, info = normalized_env.reset()
 agent = SACAgent(state_dim=obs.shape[0], 
                      action_dim=env.action_space.shape[0], 
-                     actor_lr=0.0003, 
-                     critic_lr=0.003,
+                     actor_lr=0.003, 
+                     critic_lr=0.03,
                      action_high=1,
                      action_low=0,)
 buffer = ReplayBuffer(max_size=1000000, obs_shape=obs.shape[0], n_actions=env.action_space.shape[0])
