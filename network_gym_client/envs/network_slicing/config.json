@@ -32,18 +32,21 @@
         "max_y":10,
         "z":1.5
       },
-      "app_and_measurement_start_time_ms": 1000,
+      "measurement_start_time_ms": 1000,
       "transport_protocol": "udp",
       "udp_poisson_arrival": true,
       "min_udp_rate_per_user_mbps": 2,
       "max_udp_rate_per_user_mbps": 2,
       "respond_action_after_measurement": true,
       "qos_requirement": {
-        "delay_bound_ms": 100
+        "delay_bound_ms": 100,
+        "delay_test_1_thresh_ms": 200,
+        "delay_test_2_thresh_ms": 400
       },
       "GMA": {
           "downlink_mode": "auto",
           "uplink_mode": "auto",
+          "enable_dynamic_flow_prioritization": false,
           "measurement_interval_ms": 100,
           "measurement_guard_interval_ms": 0
       },
