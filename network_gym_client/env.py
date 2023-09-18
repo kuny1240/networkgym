@@ -58,7 +58,7 @@ def load_config_file(env_name):
 class Env(gym.Env):
     """Custom NetworkGym Environment that follows gym interface."""
 
-    def __init__(self, id, config_json):
+    def __init__(self, id, config_json, log = True):
         """Initilize Env.
 
         Args:
@@ -104,7 +104,9 @@ class Env(gym.Env):
         #Define config params
         module_path = 'network_gym_client.envs.'+config_json['env_config']['env']+'.adapter'
         module = importlib.import_module(module_path, package=None)
-        self.adapter = module.Adapter(config_json)
+        self.log = log
+        self.adapter = module.Adapter(config_json, log)
+        
 
         self.enable_rl_agent = True
         if config_json['rl_config']['agent']=="system_default":
@@ -215,7 +217,7 @@ class Env(gym.Env):
         #Get reward
         reward = self.adapter.get_reward(network_stats)
 
-        if (self.current_step + 1) % 10 == 0:
+        if (self.current_step + 1) % 10 == 0 and self.log:
             self.adapter.wandb_log()
 
         #3.) Check end of Episode

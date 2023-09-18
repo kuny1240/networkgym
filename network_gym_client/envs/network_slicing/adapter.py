@@ -16,7 +16,7 @@ class Adapter(network_gym_client.adapter.Adapter):
     Args:
         Adapter (network_gym_client.adapter.Adapter): the base class
     """
-    def __init__(self, config_json):
+    def __init__(self, config_json, log = True):
         """Initilize adapter.
         """
         super().__init__(config_json)
@@ -42,9 +42,10 @@ class Adapter(network_gym_client.adapter.Adapter):
 
         Returns:
             spaces: action spaces
+            In our setting first X-1 slices are prioritized, the last slice is shared. So the action only controls the first X-1 slices.
         """
         if (self.env == self.config_json['env_config']['env']):
-            return spaces.Box(low=0, high=1, shape=(len(self.config_json['env_config']['slice_list']),), dtype=np.float32)
+            return spaces.Box(low=0, high=1, shape=(len(self.config_json['env_config']['slice_list']) - 1,), dtype=np.float32)
         else:
             sys.exit("[ERROR] wrong environment or RL agent.")
     
@@ -105,12 +106,17 @@ class Adapter(network_gym_client.adapter.Adapter):
         # Extract necessary dataframes from the list
         names = ['max_rate', 'tx_rate', 'rate', 'rb_usage', 'delay_violation', 'slice_id', 'owd', 'max_owd']
         
+        # breakpoint()
         max_rates = np.array(df[df['name'] == "max_rate"]["value"].to_list()[0]) #keep the LTE rate.
+        disturbed_user =  np.array(df[df['name'] == "slice_id"]["user"].to_list()[0])
+        arg_sort_id = np.argsort(disturbed_user)
         loads = np.array(df[df["name"] == "tx_rate"]["value"].to_list()[0])
-        rates = np.array(df[(df["cid"] == "LTE") & (df["name"] == "rate")]["value"].to_list()[0])
+        rates = np.array(df[(df["cid"] == "All") & (df["name"] == "rate")]["value"].to_list()[0])
         rb_usages = np.array(df[df["name"] == "rb_usage"]["value"].to_list()[0])
+        rb_usages = rb_usages[arg_sort_id]
         delay_violation_rates = np.array(df[df["name"] == "delay_violation"]["value"].to_list()[0])
         slice_ids = np.array(df[df["name"] == "slice_id"]["value"].to_list()[0], dtype=np.int64)
+        slice_ids = slice_ids[arg_sort_id]
         owds = np.array(df[(df["cid"] == "LTE") & (df["name"] == "owd")]["value"].to_list()[0])
         max_owds = np.array(df[(df["cid"] == "LTE") & (df["name"] == "max_owd")]["value"].to_list()[0])      
         # breakpoint()
@@ -193,7 +199,9 @@ class Adapter(network_gym_client.adapter.Adapter):
             json: the network policy
         """
 
-        if action.size != self.num_slices:
+        
+        
+        if action.size + 1 != self.num_slices:
             sys.exit("The action size: " + str(action.size()) +" does not match with the number of slices:" + self.num_slices)
         # you may also check other constraints for action... e.g., min, max.
         
@@ -201,9 +209,18 @@ class Adapter(network_gym_client.adapter.Adapter):
             action = np.exp(action)/np.sum(np.exp(action))
             
         scaled_action= np.interp(action, (0, 1), (0, self.rbg_num))
-        scaled_action = np.floor(scaled_action).astype(int) # force it to be an interger.
-        if np.sum(scaled_action) > 25:
-            breakpoint()
+        scaled_action = np.round(scaled_action).astype(int) # force it to be an interger smaller than total RB.
+        
+        while np.sum(scaled_action) > 25:
+            max_ind = np.argmax(scaled_action)
+            scaled_action[max_ind] -= 1
+            # rand_ind = np.random.randint(0, len(scaled_action))
+            # scaled_action[rand_ind] -= 1
+            # breakpoint()
+            
+        scaled_action = np.append(scaled_action, 0)
+            
+         # The last slice is shared, so the action is always 0.
         
         # you can add more tags
         tags = {}
@@ -213,9 +230,9 @@ class Adapter(network_gym_client.adapter.Adapter):
 
         tags["rb_type"] = "D"# dedicated RBG
         # this function will convert the action to a nested json format
-        policy1 = self.get_nested_json_policy('rb_allocation', tags,scaled_action , 'slice')
+        policy1 = self.get_nested_json_policy('rb_allocation', tags, np.zeros_like(scaled_action), 'slice')
         tags["rb_type"] = "P"# prioritized RBG
-        policy2 = self.get_nested_json_policy('rb_allocation', tags,np.zeros(len(scaled_action))  , 'slice')
+        policy2 = self.get_nested_json_policy('rb_allocation', tags,scaled_action , 'slice')
         
         tags["rb_type"] = "S"# shared RBG
         policy3 = self.get_nested_json_policy('rb_allocation', tags, np.ones(len(scaled_action))*self.config_json['env_config']['LTE']['resource_block_num']//4, 'slice')
@@ -252,6 +269,33 @@ class Adapter(network_gym_client.adapter.Adapter):
 
         #check reward type, TODO: add reward combination of delay and throughput from network util function
         num_slices = len(self.config_json['env_config']['slice_list'])
+        # loads = np.array(df[df["name"] == "tx_rate"]["value"].to_list()[0])
+        # rates = np.array(df[(df["cid"] == "All") & (df["name"] == "rate")]["value"].to_list()[0])
+        # per_slice_rx_rate = np.zeros((num_slices,))
+        # per_slice_tx_rate = np.zeros((num_slices,))
+        # slice_ids = np.array(df[df["name"] == "slice_id"]["value"].to_list()[0], dtype=np.int64)
+        # breakpoint()
+        
+        # try:
+        #     assert len(rates) == len(slice_ids)
+        # except:
+        #     length = len(slice_ids)
+        #     # Create a list of the arrays
+        #     arrays = [rates]
+        #     # Loop over the list of arrays
+        #     for i in range(len(arrays)):
+        #         # Get the last element
+        #         last_element = arrays[i][-1]
+        #         # Calculate the number of times to extend
+        #         num_times = length - len(arrays[i])
+        #         # Extend the array and assign the result back to the original variable
+        #         arrays[i] = np.append(arrays[i], [last_element]*num_times)
+
+        #         # Unpack the list back to the original variables
+        #         rates = arrays
+        # for i in np.unique(slice_ids):
+        #     per_slice_tx_rate[i] = np.sum(loads[slice_ids == i])
+        #     per_slice_rx_rate[i] = np.sum(rates[slice_ids == i])
         per_slice_achieved = observation[:num_slices]
         per_slice_rb_usage = observation[num_slices:2*num_slices]
         per_slice_delay_violation_rate = observation[2*num_slices:3*num_slices]
@@ -264,10 +308,11 @@ class Adapter(network_gym_client.adapter.Adapter):
             reward = -sum(per_slice_delay_violation_rate)
         elif self.config_json['rl_config']['reward_type'] == 'throughput':
             reward = sum(per_slice_achieved)
-        elif self.config_json['rl_config']['reward_type'] == 'slice_wise':
-            weight = np.ones_like(per_slice_achieved)
-            reward = np.matmul(weight.T,(per_slice_achieved, per_slice_rb_usage, per_slice_delay_violation_rate))
-        elif self.config_json['rl_config']['reward_type'] == 'delay_threshold':
+        elif self.config_json['rl_config']['reward_type'] == 'weighted':
+            weight = np.array(self.config_json['rl_config']['reward_weight'])
+            # breakpoint()
+            reward = np.matmul(weight.T,per_slice_achieved - alpha * per_slice_rb_usage - gamma * per_slice_delay_violation_rate)
+        elif self.config_json['rl_config']['reward_type'] == 'threshold':
             thresholds = self.config_json['env_config']['delay_thresholds']
             for i in range(num_slices):
                 reward += 3 if per_slice_mean_delay[i] <= thresholds[0] else 2 if per_slice_mean_delay[i] <= thresholds[1] else 1
@@ -278,17 +323,25 @@ class Adapter(network_gym_client.adapter.Adapter):
         # print("[WARNING] reward fucntion not defined yet")
         
         keys = [
-            "rx/tx_rate_ratio",
+            "rx/tx_ratio",
             "rb_usage",
             "delay_violation_rate",
         ]
-        slice_key = "slice_id"
-        slice_ids = np.array(df[df["name"] == slice_key]["value"].to_list()[0], dtype=np.int64)
+        # slice_key = "slice_id"
+        # slice_ids = np.array(df[df["name"] == slice_key]["value"].to_list()[0], dtype=np.int64)
         self.global_steps += 1
        
         for i, key in enumerate(keys):
-            for j in np.unique(slice_ids):
-                dict_slice = {f"{key}_slice_{j}": observation[num_slices*i+j]}
+            for j in range(num_slices):
+                if key == "rx/tx_ratio":
+                    dict_slice = {f"{key}_slice_{j}": per_slice_achieved[j]}
+                elif key == "tx_rate":
+                    # dict_slice = {f"{key}_slice_{j}": per_slice_tx_rate[j]}
+                    pass
+                elif key == "rb_usage":
+                    dict_slice = {f"{key}_slice_{j}": per_slice_rb_usage[j]}
+                elif key == "delay_violation_rate":
+                    dict_slice = {f"{key}_slice_{j}": per_slice_delay_violation_rate[j]}
                 if not self.wandb_log_buffer:
                     self.wandb_log_buffer = dict_slice
                 else:

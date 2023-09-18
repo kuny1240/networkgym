@@ -5,6 +5,7 @@
 import numpy as np
 import pandas as pd
 import h5py
+import os
 import torch
 
 class ReplayBuffer:
@@ -39,18 +40,57 @@ class ReplayBuffer:
         return states, actions, rewards, states_, dones
 
     def save_buffer(self, file_name):
-        with h5py.File(file_name, 'w') as f:
-            f.create_dataset('states', data=self.state_memory[:min(self.mem_cntr, self.mem_size)])
-            f.create_dataset('actions', data=self.action_memory[:min(self.mem_cntr, self.mem_size)])
-            f.create_dataset('rewards', data=self.reward_memory[:min(self.mem_cntr, self.mem_size)])
-            f.create_dataset('next_states', data=self.new_state_memory[:min(self.mem_cntr, self.mem_size)])
-            f.create_dataset('dones', data=self.terminal_memory[:min(self.mem_cntr, self.mem_size)])
+        '''
+        If the file_name exists, then append the buffer to the file,
+        otherwise, create a new file.
+        '''
+        min_size = min(self.mem_cntr, self.mem_size)
+        if os.path.exists(file_name):
+            with h5py.File(file_name, 'a') as f:
+                for dataset_name, memory in [('states', self.state_memory), 
+                                            ('actions', self.action_memory), 
+                                            ('rewards', self.reward_memory), 
+                                            ('next_states', self.new_state_memory), 
+                                            ('dones', self.terminal_memory)]:
+                    f[dataset_name].resize((f[dataset_name].shape[0] + min_size), axis=0)
+                    f[dataset_name][-min_size:] = memory[:min_size]
+        else:
+            with h5py.File(file_name, 'w') as f:
+                # Assuming the datasets are 2D arrays. Adjust the shape, maxshape, and chunks as needed.
+                
+                for dataset_name, memory in [('states', self.state_memory), 
+                                            ('actions', self.action_memory), 
+                                            ('rewards', self.reward_memory), 
+                                            ('next_states', self.new_state_memory), 
+                                            ('dones', self.terminal_memory)]:
+                    
+                    
+                    if memory.ndim == 1:
+                        max_shape = (None,)
+                        chunks_shape = (1,)
+                    else:
+                        max_shape = (None,1e7)
+                        chunks_shape = (1, memory.shape[1])  # This sets the chunk shape    
+                    f.create_dataset(dataset_name, data=memory[:min_size],maxshape = max_shape,chunks=chunks_shape)
+
+
 
     def load_buffer(self, file_name):
         with h5py.File(file_name, 'r') as f:
-            self.state_memory[:self.mem_size] = f['states']
-            self.action_memory[:self.mem_size] = f['actions']
-            self.reward_memory[:self.mem_size] = f['rewards']
-            self.new_state_memory[:self.mem_size] = f['next_states']
-            self.terminal_memory[:self.mem_size] = f['dones']
+            self.state_memory = f['states'][:]
+            self.action_memory = f['actions'][:]
+            self.reward_memory = f['rewards'][:]
+            self.new_state_memory = f['next_states'][:]
+            self.terminal_memory = f['dones'][:]
             self.mem_cntr = min(self.mem_size, len(f['states']))
+            
+            
+    def nomarlize_states(self):
+        
+        state_mean = np.mean(self.state_memory, axis=0)
+        state_std = np.std(self.state_memory, axis=0)
+        self.state_memory = (self.state_memory - state_mean) / (state_std + 1e-7)
+        next_state_mean = np.mean(self.new_state_memory, axis=0)
+        next_state_std = np.std(self.new_state_memory, axis=0)
+        self.new_state_memory = (self.new_state_memory - next_state_mean) / (next_state_std + 1e-7)
+

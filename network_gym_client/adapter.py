@@ -16,7 +16,7 @@ class Adapter:
     It transforms the network stats measurements (json) to obs and reward (Spaces).
     It also transforms the action (Spaces) to a policy (json) that can be applied to the network.
     """
-    def __init__(self, config_json):
+    def __init__(self, config_json, log = True):
         """Initialize Adapter.
         
         Args:
@@ -35,15 +35,18 @@ class Adapter:
             "RL_algo" : rl_alg
         }
 
-        self.wandb.init(
-            # name=rl_alg + "_" + str(config_json['env_config']['num_users']) + "_LTE_" +  str(config_json['env_config']['LTE']['resource_block_num']),
-            # name=rl_alg + "_" + str(config_json['env_config']['num_users']) + "_" +  str(config_json['env_config']['LTE']['resource_block_num']),
-            name=rl_alg + "_" + hashlib.md5(json.dumps(config).encode('utf-8')).hexdigest(),
-            project="network_gym_client",
-            config=config,
-            sync_tensorboard=True,  # auto-upload sb3's tensorboard metrics
-            # save_code=True,  # optional
-        )
+        if log:
+
+            self.wandb.init(
+                # name=rl_alg + "_" + str(config_json['env_config']['num_users']) + "_LTE_" +  str(config_json['env_config']['LTE']['resource_block_num']),
+                # name=rl_alg + "_" + str(config_json['env_config']['num_users']) + "_" +  str(config_json['env_config']['LTE']['resource_block_num']),
+                name=rl_alg + "_"+ "slice_num" + "_" + str(len(config_json['env_config']['slice_list'])) + "_" + "traffic_load" + "_" + 
+                            str(config_json['env_config']['max_udp_rate_per_user_mbps']) + "reward_type" +  "_" + str(config_json['rl_config']['reward_type']),
+                project="network_gym_client",
+                config=config,
+                sync_tensorboard=True,  # auto-upload sb3's tensorboard metrics
+                # save_code=True,  # optional
+            )
     
     def wandb_log_buffer_append (self, info):
         """Add to wandb log buffer, the info will be send to wandb later in the :meth:`wandb_log` function

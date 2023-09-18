@@ -5,3 +5,4 @@
 *.pyc
 network_gym_accounts.csv
 /docs/_build
+/dataset

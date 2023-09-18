@@ -12,20 +12,17 @@ sys.path.append('.')
 sys.path.append('../')
 sys.path.append('../../')
 
-from network_gym_client import load_config_file
-from network_gym_client import Env as NetworkGymEnv
-
-from gymnasium.wrappers import NormalizeObservation
+from .base_agent import BaseAgent
 
 policy_freq = 2
 target_update_freq = 1
 
 class SoftQNetwork(nn.Module):
-    def __init__(self, state_dim, action_dim):
+    def __init__(self, state_dim, action_dim, hidden_dim=256):
         super().__init__()
-        self.fc1 = nn.Linear(np.array(state_dim).prod() + np.prod(action_dim), 256)
-        self.fc2 = nn.Linear(256, 256)
-        self.fc3 = nn.Linear(256, 1)
+        self.fc1 = nn.Linear(np.array(state_dim).prod() + np.prod(action_dim), hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
+        self.fc3 = nn.Linear(hidden_dim, 1)
 
     def forward(self, x, a):
         x = torch.cat([x, a], 1)
@@ -40,12 +37,12 @@ LOG_STD_MIN = -5
 
 
 class Actor(nn.Module):
-    def __init__(self, state_dim, action_dim, action_high, action_low):
+    def __init__(self, state_dim, action_dim, action_high, action_low, hidden_dim=256):
         super().__init__()
-        self.fc1 = nn.Linear(np.array(state_dim).prod(), 256)
-        self.fc2 = nn.Linear(256, 256)
-        self.fc_mean = nn.Linear(256, np.prod(action_dim))
-        self.fc_logstd = nn.Linear(256, np.prod(action_dim))
+        self.fc1 = nn.Linear(np.array(state_dim).prod(), hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
+        self.fc_mean = nn.Linear(hidden_dim, np.prod(action_dim))
+        self.fc_logstd = nn.Linear(hidden_dim, np.prod(action_dim))
         # action rescaling
         self.register_buffer(
             "action_scale", torch.tensor((action_high- action_low) / 2.0, dtype=torch.float32)
@@ -78,13 +75,15 @@ class Actor(nn.Module):
         mean = torch.tanh(mean) * self.action_scale + self.action_bias
         return action, log_prob, mean
 
-class SACAgent:
-    def __init__(self, state_dim, action_dim, actor_lr, critic_lr, action_high, action_low):
-        self.actor = Actor(state_dim, action_dim, action_high, action_low)
-        self.critic_1 = SoftQNetwork(state_dim, action_dim)
-        self.critic_2 = SoftQNetwork(state_dim, action_dim)
-        self.critic_target_1 = copy.deepcopy(self.critic_1)
-        self.critic_target_2 = copy.deepcopy(self.critic_2)
+class SACAgent(BaseAgent):
+    def __init__(self, state_dim, action_dim, actor_lr, critic_lr, action_high, action_low,device = "cuda:0", hidden_dim=256):
+        
+        self._device = device
+        self.actor = Actor(state_dim, action_dim, action_high, action_low, hidden_dim).to(self._device)
+        self.critic_1 = SoftQNetwork(state_dim, action_dim, hidden_dim).to(self._device)
+        self.critic_2 = SoftQNetwork(state_dim, action_dim, hidden_dim).to(self._device)
+        self.critic_target_1 = copy.deepcopy(self.critic_1).to(self._device)
+        self.critic_target_2 = copy.deepcopy(self.critic_2).to(self._device)
         self.q_optimizer = optim.Adam(list(self.critic_1.parameters()) + list(self.critic_2.parameters()), lr=critic_lr)
         self.actor_optimizer = optim.Adam(list(self.actor.parameters()), lr=actor_lr)
         self.global_step = 0
@@ -92,18 +91,19 @@ class SACAgent:
         self.tau = 0.05
         self.alpha = 0.2
 
-    def predict(self, state):
+    def predict(self, state, device="cuda:0"):
+        state = torch.tensor(state.reshape(1, -1), device=device, dtype=torch.float32)
         with torch.no_grad():
-            action, _, _ = self.actor.get_action(torch.Tensor(state))
-            action = action.detach().cpu().numpy()
-            return action
+            actions, _ = self.actor(state)
+        actions = torch.softmax(actions, dim=-1)
+        return actions.cpu().data.numpy().flatten()
 
     def learn(self, states, actions, rewards, next_states, dones):
-        states = torch.from_numpy(states).float()
-        next_states = torch.from_numpy(next_states).float()
-        actions = torch.from_numpy(actions).float()
-        rewards = torch.from_numpy(rewards).float().reshape((-1, 1))
-        dones = torch.from_numpy(dones).float().reshape((-1,1))
+        states = torch.from_numpy(states).float().to(self._device)
+        next_states = torch.from_numpy(next_states).float().to(self._device)
+        actions = torch.from_numpy(actions).float().to(self._device)
+        rewards = torch.from_numpy(rewards).float().reshape((-1, 1)).to(self._device)
+        dones = torch.from_numpy(dones).float().reshape((-1,1)).to(self._device)
 
         # Update Q-functions
         # breakpoint()
