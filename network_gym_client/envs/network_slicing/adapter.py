@@ -19,7 +19,7 @@ class Adapter(network_gym_client.adapter.Adapter):
     def __init__(self, config_json, log = True):
         """Initilize adapter.
         """
-        super().__init__(config_json)
+        super().__init__(config_json, log)
         self.env = Path(__file__).resolve().parent.name
         self.num_slices = len(self.config_json['env_config']['slice_list'])
         self.num_features = 5 # {slice_rate/slice_load, slice_rb_usage, delay_violation_rate, max_delay, mean_delay}
@@ -140,16 +140,16 @@ class Adapter(network_gym_client.adapter.Adapter):
                 # Unpack the list back to the original variables
                 rates, owds, max_owds = arrays
         # Create a DataFrame
-
+        max_rate = np.min(max_rates)
         # Group by slice_id and compute the sum/mean
         obs = np.zeros((self.num_features, len(self.config_json['env_config']['slice_list'])))
         for i in np.unique(slice_ids):
             # breakpoint()
             obs_slice = np.array([np.sum(rates[slice_ids == i])/np.sum(loads[slice_ids == i]), 
+                                  np.sum(loads[slice_ids == i])/max_rate,
                                   np.sum(rb_usages[slice_ids == i])/100, 
                                   np.mean(delay_violation_rates[slice_ids == i])/100, 
-                                  np.max(max_owds[slice_ids == i])/self.config_json['env_config']['qos_requirement']['delay_bound_ms'], 
-                                  np.mean(owds[slice_ids == i])/self.config_json['env_config']['qos_requirement']['delay_bound_ms']])
+                                  np.mean(owds[slice_ids == i])/1000])
             # obs_slice = np.array([np.sum(rates[slice_ids == i]), 
             #                       np.sum(rb_usages[slice_ids == i]), 
             #                       np.mean(delay_violation_rates[slice_ids == i]), 
@@ -157,10 +157,6 @@ class Adapter(network_gym_client.adapter.Adapter):
             #                       np.mean(owds[slice_ids == i])])
             
             # If the max and mean owd are too large, set them to -1
-            if obs_slice[3] > 10:
-                obs_slice[3] = 10
-            if obs_slice[4] > 5:
-                obs_slice[4] = 5
             obs[:, i] = obs_slice
         
         
@@ -297,9 +293,9 @@ class Adapter(network_gym_client.adapter.Adapter):
         #     per_slice_tx_rate[i] = np.sum(loads[slice_ids == i])
         #     per_slice_rx_rate[i] = np.sum(rates[slice_ids == i])
         per_slice_achieved = observation[:num_slices]
-        per_slice_rb_usage = observation[num_slices:2*num_slices]
-        per_slice_delay_violation_rate = observation[2*num_slices:3*num_slices]
-        per_slice_max_delay = observation[3*num_slices:4*num_slices]
+        per_slice_load = observation[num_slices:2*num_slices]
+        per_slice_rb_usage = observation[2*num_slices:3*num_slices]
+        per_slice_delay_violation_rate = observation[3*num_slices:4*num_slices]
         per_slice_mean_delay = observation[4*num_slices:5*num_slices]
         if self.config_json['rl_config']['reward_type'] == 'default':
             # breakpoint()
@@ -323,9 +319,10 @@ class Adapter(network_gym_client.adapter.Adapter):
         # print("[WARNING] reward fucntion not defined yet")
         
         keys = [
-            "rx/tx_ratio",
-            "rb_usage",
-            "delay_violation_rate",
+            "traffic/tx_ratio",
+            "traffic/rx_ratio",
+            "resource/rb_usage",
+            "delay/delay_violation_rate",
         ]
         # slice_key = "slice_id"
         # slice_ids = np.array(df[df["name"] == slice_key]["value"].to_list()[0], dtype=np.int64)
@@ -336,8 +333,8 @@ class Adapter(network_gym_client.adapter.Adapter):
                 if key == "rx/tx_ratio":
                     dict_slice = {f"{key}_slice_{j}": per_slice_achieved[j]}
                 elif key == "tx_rate":
-                    # dict_slice = {f"{key}_slice_{j}": per_slice_tx_rate[j]}
-                    pass
+                    dict_slice = {f"{key}_slice_{j}": per_slice_load[j]}
+                    # pass
                 elif key == "rb_usage":
                     dict_slice = {f"{key}_slice_{j}": per_slice_rb_usage[j]}
                 elif key == "delay_violation_rate":
