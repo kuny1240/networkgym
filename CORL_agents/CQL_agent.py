@@ -120,6 +120,12 @@ class TanhGaussianPolicy(nn.Module):
         self.log_std_multiplier = Scalar(log_std_multiplier)
         self.log_std_offset = Scalar(log_std_offset)
         self.tanh_gaussian = ReparameterizedTanhGaussian(no_tanh=no_tanh)
+        self.register_buffer(
+            "action_scale", torch.tensor((1- 0) / 2.0, dtype=torch.float32)
+        )
+        self.register_buffer(
+            "action_bias", torch.tensor((1 + 0) / 2.0, dtype=torch.float32)
+        )
 
     def log_prob(
         self, observations: torch.Tensor, actions: torch.Tensor
@@ -144,14 +150,14 @@ class TanhGaussianPolicy(nn.Module):
         mean, log_std = torch.split(base_network_output, self.action_dim, dim=-1)
         log_std = self.log_std_multiplier() * log_std + self.log_std_offset()
         actions, log_probs = self.tanh_gaussian(mean, log_std, deterministic)
-        return self.max_action * actions, log_probs
+        actions = actions * self.action_scale + self.action_bias
+        return actions, log_probs
 
     @torch.no_grad()
     def act(self, state: np.ndarray, device: str = "cpu"):
         state = torch.tensor(state.reshape(1, -1), device=device, dtype=torch.float32)
         with torch.no_grad():
             actions, _ = self(state, not self.training)
-        actions = torch.softmax(actions, dim=-1)
         return actions.cpu().data.numpy().flatten()
 
 
@@ -298,10 +304,8 @@ class ContinuousCQL:
         
     def predict(self, state: np.ndarray, device: str = "cuda:0"):
         state = torch.tensor(state.reshape(1, -1), device=device, dtype=torch.float32)
-        with torch.no_grad():
-            actions, _ = self.actor(state)
-        actions = torch.softmax(actions, dim=-1)
-        return actions.cpu().data.numpy().flatten()
+        actions = self.actor.act(state, device=device)
+        return actions
 
     def _alpha_and_alpha_loss(self, observations: torch.Tensor, log_pi: torch.Tensor):
         if self.use_automatic_entropy_tuning:
@@ -371,11 +375,10 @@ class ContinuousCQL:
             target_q_values = target_q_values - alpha * next_log_pi
 
         target_q_values = target_q_values.unsqueeze(-1)
-        td_target = rewards + (1.0 - dones) * self.discount * target_q_values.detach()
+        td_target = rewards.flatten() + (1.0 - dones.flatten()) * self.discount * target_q_values.detach()
         td_target = td_target.squeeze(-1)
         qf1_loss = F.mse_loss(q1_predicted, td_target.detach())
         qf2_loss = F.mse_loss(q2_predicted, td_target.detach())
-
         # CQL
         batch_size = actions.shape[0]
         action_dim = actions.shape[-1]

@@ -94,8 +94,8 @@ class SACAgent(BaseAgent):
     def predict(self, state, device="cuda:0"):
         state = torch.tensor(state.reshape(1, -1), device=device, dtype=torch.float32)
         with torch.no_grad():
-            actions, _ = self.actor(state)
-        actions = torch.softmax(actions, dim=-1)
+            actions, _, _ = self.actor.get_action(state)
+        # actions = torch.softmax(actions, dim=-1)
         return actions.cpu().data.numpy().flatten()
 
     def learn(self, states, actions, rewards, next_states, dones):
@@ -139,6 +139,16 @@ class SACAgent(BaseAgent):
                 self.actor_optimizer.zero_grad()
                 actor_loss.backward()
                 self.actor_optimizer.step()
+                
+        log_dict = dict(
+            qf1_pred=q1.mean().item(),
+            qf2_pred=q2.mean().item(),
+            average_target_qa=next_q_value.mean().item(),
+            qf1_loss=q1_loss.item(),
+            qf2_loss=q2_loss.item(),
+            qf_loss=qf_loss.item(),
+            actor_loss=actor_loss.item(),
+        )
 
         # Update target networks
         for param, target_param in zip(self.critic_1.parameters(), self.critic_target_1.parameters()):
@@ -146,6 +156,8 @@ class SACAgent(BaseAgent):
 
         for param, target_param in zip(self.critic_2.parameters(), self.critic_target_2.parameters()):
             target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
+            
+        return log_dict
 
 
     def save(self, filepath):

@@ -3,13 +3,14 @@
 #File : start_evaluation.py
 import numpy as np
 import wandb
+import pandas as pd
 from network_gym_client import load_config_file
 from network_gym_client import Env as NetworkGymEnv
 from gymnasium.wrappers import NormalizeObservation
 from CleanRL_agents.sac import SACAgent
 from CORL_agents import CQL
 from tqdm import tqdm
-
+import torch
 
 client_id = 0
 env_name = "network_slicing"
@@ -36,10 +37,25 @@ def baseline(loads):
     return np.array(loads)
 
 
-slice_lists = [
+slice_lists = slice_lists = [
     [
-        {"num_users":10,"dedicated_rbg":0,"prioritized_rbg":12,"shared_rbg":25},
+        {"num_users":6,"dedicated_rbg":0,"prioritized_rbg":12,"shared_rbg":25},
+        {"num_users":20,"dedicated_rbg":0,"prioritized_rbg":13,"shared_rbg":25},
+        {"num_users":5,"dedicated_rbg":0,"prioritized_rbg":0,"shared_rbg":25}
+    ],
+     [
+        {"num_users":11,"dedicated_rbg":0,"prioritized_rbg":12,"shared_rbg":25},
         {"num_users":15,"dedicated_rbg":0,"prioritized_rbg":13,"shared_rbg":25},
+        {"num_users":5,"dedicated_rbg":0,"prioritized_rbg":0,"shared_rbg":25}
+    ],
+    [
+        {"num_users":13,"dedicated_rbg":0,"prioritized_rbg":12,"shared_rbg":25},
+        {"num_users":13,"dedicated_rbg":0,"prioritized_rbg":13,"shared_rbg":25},
+        {"num_users":5,"dedicated_rbg":0,"prioritized_rbg":0,"shared_rbg":25}
+    ],
+    [
+        {"num_users":15,"dedicated_rbg":0,"prioritized_rbg":12,"shared_rbg":25},
+        {"num_users":11,"dedicated_rbg":0,"prioritized_rbg":13,"shared_rbg":25},
         {"num_users":5,"dedicated_rbg":0,"prioritized_rbg":0,"shared_rbg":25}
     ],
      [
@@ -47,26 +63,21 @@ slice_lists = [
         {"num_users":6,"dedicated_rbg":0,"prioritized_rbg":13,"shared_rbg":25},
         {"num_users":5,"dedicated_rbg":0,"prioritized_rbg":0,"shared_rbg":25}
     ],
-    [
-        {"num_users":15,"dedicated_rbg":0,"prioritized_rbg":12,"shared_rbg":25},
-        {"num_users":10,"dedicated_rbg":0,"prioritized_rbg":13,"shared_rbg":25},
-        {"num_users":5,"dedicated_rbg":0,"prioritized_rbg":0,"shared_rbg":25}
-    ],
+    
 ]
 
 
 config_json["env_config"]["episodes_per_session"] = episode_per_session
 config_json["env_config"]["steps_per_episode"] = steps_per_episode
-config_json["env_config"]["random_seed"] = 12
-labels = ["heavy_balanced", "heavy_unbanlanced", "light"]
-eval_methods = ["sac", "baseline", "equal"]
-wandb.init(project = "netgym_eval", name = f"eval_test", config = config_json)
-wandb.define_metric("eval/method")
-wandb.define_metric("eval/*", step = "eval/method")
-# eval_method = "equal"
-# eval_method = "cql"
-# Create the environment
-# breakpoint()
+config_json["env_config"]["random_seed"] = 1
+labels = ["6_20","11_15","13_13","15_11","20_6"]
+eval_methods = ["baseline", "equal", "sac", "cql"]
+# eval_methods = ["sac"]
+run = wandb.init(project="netgym_eval", 
+                         group=f"{env_name}_{label}", 
+                         tags=eval_methods, 
+                         name=f"{eval_method}_{label}", 
+                         config=config_json)
 
 for i, slice_list in enumerate(slice_lists):
     config_json["env_config"]["slice_list"] = slice_list
@@ -75,9 +86,9 @@ for i, slice_list in enumerate(slice_lists):
     for k,eval_method in enumerate(eval_methods):
         
         config_json["rl_config"]["agent"] = eval_method
-        env = NetworkGymEnv(0, config_json, log=False) # make a network env using pass client id and configure file arguements.
-        normalized_env = NormalizeObservation(env) # normalize the observation
-
+        env = NetworkGymEnv(1, config_json, log=False) # make a network env using pass client id and configure file arguements.
+        # normalized_env = NormalizeObservation(env) # normalize the observation
+        normalized_env = env
 
        
         # breakpoint()
@@ -92,16 +103,17 @@ for i, slice_list in enumerate(slice_lists):
                                     critic_lr=0.03,
                                     action_high=1,
                                     action_low=0,)
-            sac_agent.load("./models/sac_model_3_weighted_1240_best.ckpt")
+            sac_agent.load("./models/sac_model_3_weighted_42_best.ckpt")
             sac_agent.actor.eval()
         elif eval_method == "cql":
             agent = CQL(state_dim=15, action_dim=2, hidden_dim=64, target_entropy=-2,
                         q_n_hidden_layers=2, max_action=1, qf_lr=3e-4, policy_lr=6e-5,device="cuda:0")
-            agent.load("./models/cql_model_dataset_type_sac_hidden_dim_64_hidden_layer_2_best.pt")
+            agent.load("./models/cql_dataset_baseline_best.pt")
             agent.actor.eval()
             
         progress_bar = tqdm(range(num_steps))
         total_reward = 0
+        eval_num = len(slice_lists)
         avg_dvr = np.zeros(3)
         avg_rbu = np.zeros(3)
         for step in progress_bar:
@@ -122,6 +134,7 @@ for i, slice_list in enumerate(slice_lists):
                 action = baseline(loads_per_slice)  # agent policy that uses the observation and info
             elif eval_method == "sac":
                 action = sac_agent.predict(obs)
+                # action = np.exp(action)/np.sum(np.exp(action))
             elif eval_method == "cql":
                 action = agent.predict(obs)
             else:
@@ -145,7 +158,7 @@ for i, slice_list in enumerate(slice_lists):
         avg_rbu /= num_steps
         log_dict[f"eval/{label}_total_reward"] = total_reward
         log_dict[f"eval/method"] = k
-        for j in range(3):
+        for j in range(len(slice_list)):
             log_dict[f"eval/{label}_delay_violation_rate_slice_{j}"] = avg_dvr[j]
             log_dict[f"eval/{label}_resource_block_usage_slice_{j}"] = avg_rbu[j]
         wandb.log(log_dict)

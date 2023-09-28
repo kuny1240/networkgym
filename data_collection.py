@@ -9,13 +9,14 @@ from CleanRL_agents.sac import SACAgent
 from utils.buffer import ReplayBuffer
 from CORL_agents import CQL
 from tqdm import tqdm
+from utils.utils import *
 
 
 client_id = 0
 env_name = "network_slicing"
 config_json = load_config_file(env_name)
 
-num_steps = 1000
+num_steps = 100
 steps_per_episode = 100
 episode_per_session = num_steps // steps_per_episode
 
@@ -103,7 +104,7 @@ for slice_list in slice_lists:
                                     critic_lr=0.03,
                                     action_high=1,
                                     action_low=0,)
-            sac_agent.load("./models/sac_model_3_weighted_1240_best.ckpt")
+            sac_agent.load("./models/sac_model_3_weighted_42_best.ckpt")
             sac_agent.actor.eval()
         elif eval_method == "cql":
             agent = CQL(state_dim=15, action_dim=2, hidden_dim=64, target_entropy=-2,
@@ -116,6 +117,8 @@ for slice_list in slice_lists:
         print(f"Collecting data from env {slice_list} using {eval_method} agent...")
 
         for step in progress_bar:
+            
+            
 
             if eval_method == "baseline":
                 df = info["network_stats"]
@@ -137,12 +140,15 @@ for slice_list in slice_lists:
                 action = np.array(action)
             next_obs, reward, terminated, truncated, info = env.step(action)
             buffer.store(obs, action, reward, next_obs, terminated)
+            dataset = info_to_dataset(info)
+            buffer.store_raw_measurements(dataset)
             obs = next_obs
 
             # If the environment is end, exit
             if terminated:
                 print("Episode end, saving buffer...")
                 buffer.save_buffer("./dataset/{}_buffer.h5".format(eval_method))
+                buffer.save_raw_data("./dataset/{}_raw_data.h5".format(eval_method))
                 break
 
             # If the epsiode is up (environment still running), then start another one

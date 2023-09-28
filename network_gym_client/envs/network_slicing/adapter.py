@@ -115,6 +115,7 @@ class Adapter(network_gym_client.adapter.Adapter):
         rb_usages = np.array(df[df["name"] == "rb_usage"]["value"].to_list()[0])
         rb_usages = rb_usages[arg_sort_id]
         delay_violation_rates = np.array(df[df["name"] == "delay_violation"]["value"].to_list()[0])
+        delay_violation_rates1 = np.array(df[df["name"] == "delay_violation"]["value"].to_list()[0])
         slice_ids = np.array(df[df["name"] == "slice_id"]["value"].to_list()[0], dtype=np.int64)
         slice_ids = slice_ids[arg_sort_id]
         owds = np.array(df[(df["cid"] == "LTE") & (df["name"] == "owd")]["value"].to_list()[0])
@@ -324,27 +325,28 @@ class Adapter(network_gym_client.adapter.Adapter):
             "resource/rb_usage",
             "delay/delay_violation_rate",
         ]
+        dict_slice = {}
         # slice_key = "slice_id"
         # slice_ids = np.array(df[df["name"] == slice_key]["value"].to_list()[0], dtype=np.int64)
         self.global_steps += 1
        
         for i, key in enumerate(keys):
             for j in range(num_slices):
-                if key == "rx/tx_ratio":
+                if key == "traffic/tx_ratio":
                     dict_slice = {f"{key}_slice_{j}": per_slice_achieved[j]}
-                elif key == "tx_rate":
+                elif key == "traffic/rx_ratio":
                     dict_slice = {f"{key}_slice_{j}": per_slice_load[j]}
                     # pass
-                elif key == "rb_usage":
+                elif key == "resource/rb_usage":
                     dict_slice = {f"{key}_slice_{j}": per_slice_rb_usage[j]}
-                elif key == "delay_violation_rate":
+                elif key == "delay/delay_violation_rate":
                     dict_slice = {f"{key}_slice_{j}": per_slice_delay_violation_rate[j]}
                 if not self.wandb_log_buffer:
                     self.wandb_log_buffer = dict_slice
                 else:
                     self.wandb_log_buffer.update(dict_slice)
             
-        self.wandb_log_buffer.update({"reward": reward, "avg_delay": per_slice_mean_delay.mean(), "max_delay": per_slice_max_delay.max()})
+        self.wandb_log_buffer.update({"reward": reward, "avg_delay": per_slice_mean_delay.mean()})
         # print(f"reward: {reward}, avg_delay: {per_slice_mean_delay.mean()}, max_delay: {per_slice_max_delay.max()}")
         return reward
 

@@ -18,43 +18,53 @@ from tqdm import tqdm
 from network_gym_client import load_config_file
 from network_gym_client import Env as NetworkGymEnv
 from gymnasium.wrappers import NormalizeObservation
+from utils.utils import *
 
 sys.path.append('../')
 sys.path.append('../../')
 
-def evaluate(model, env, n_episodes):
-    rewards = []
-    dict_slice = {}
-    num_slices = 3
-    for i in range(n_episodes):
-        obs, info = env.reset()
-        done = False
-        total_reward = 0
-        # breakpoint()
-        pbar = tqdm(range(200))
-        for _ in pbar:
-            
-            action = model.predict(obs)
-            obs, reward, terminated, truncated, info = env.step(action)
-            done = truncated
-            total_reward += reward
-            pbar.set_description(f"Actions: {action}, reward: {reward}, total_reward: {total_reward}")
-            if terminated:
-                break
-        rewards.append(total_reward)
-        print("Episode: {}, Reward: {}".format(i, total_reward))
 
-    avg_reward = sum(rewards) / n_episodes
-    return avg_reward, dict_slice
 
-MODEL_SAVE_FREQ = 500
+slice_lists = slice_lists = [
+    [
+        {"num_users":6,"dedicated_rbg":0,"prioritized_rbg":12,"shared_rbg":25},
+        {"num_users":20,"dedicated_rbg":0,"prioritized_rbg":13,"shared_rbg":25},
+        {"num_users":5,"dedicated_rbg":0,"prioritized_rbg":0,"shared_rbg":25}
+    ],
+     [
+        {"num_users":11,"dedicated_rbg":0,"prioritized_rbg":12,"shared_rbg":25},
+        {"num_users":15,"dedicated_rbg":0,"prioritized_rbg":13,"shared_rbg":25},
+        {"num_users":5,"dedicated_rbg":0,"prioritized_rbg":0,"shared_rbg":25}
+    ],
+    [
+        {"num_users":13,"dedicated_rbg":0,"prioritized_rbg":12,"shared_rbg":25},
+        {"num_users":13,"dedicated_rbg":0,"prioritized_rbg":13,"shared_rbg":25},
+        {"num_users":5,"dedicated_rbg":0,"prioritized_rbg":0,"shared_rbg":25}
+    ],
+    [
+        {"num_users":15,"dedicated_rbg":0,"prioritized_rbg":12,"shared_rbg":25},
+        {"num_users":11,"dedicated_rbg":0,"prioritized_rbg":13,"shared_rbg":25},
+        {"num_users":5,"dedicated_rbg":0,"prioritized_rbg":0,"shared_rbg":25}
+    ],
+     [
+        {"num_users":20,"dedicated_rbg":0,"prioritized_rbg":12,"shared_rbg":25},
+        {"num_users":6,"dedicated_rbg":0,"prioritized_rbg":13,"shared_rbg":25},
+        {"num_users":5,"dedicated_rbg":0,"prioritized_rbg":0,"shared_rbg":25}
+    ],
+    
+]
+
+
+
+MODEL_SAVE_FREQ = 2000
 LOG_INTERVAL = 10
 NUM_OF_EVALUATE_EPISODES = 10
 EVAL_EPI_PER_SESSION = 1
 
 def main(agent_type:str,
          env_name:str,
-         num_steps = 6000,
+         dataset:str,
+         num_steps = 60000,
          client_id = 0,
          hidden_dim = 64,
          steps_per_episode = 10,
@@ -73,14 +83,15 @@ def main(agent_type:str,
     config_json["env_config"]["steps_per_episode"] = steps_per_episode
     config_json["env_config"]["episodes_per_session"] = episode_per_session
     buffer = ReplayBuffer(max_size=1000000, obs_shape=15, n_actions=2)
-    buffer.load_buffer("./dataset/offline_data_heavy_traffic.h5")
-    buffer.nomarlize_states()
+    buffer.load_buffer(f"./dataset/{dataset}_buffer.h5")
+    # buffer.nomarlize_states()
     # Create the environment
     target_entropy = -np.prod((2,)).item()
     # breakpoint()
     agent = CQL(state_dim=15, action_dim=2, hidden_dim=hidden_dim, target_entropy=target_entropy,
                 q_n_hidden_layers=2, max_action=1, qf_lr=3e-3, policy_lr=6e-4,device="cuda:0")
-    wandb.init(project="network-slicing-offline", 
+    run = wandb.init(project="network-slicing-offline",
+               name=f"{agent_type}-nn-{dataset}-ver{storage_ver}", 
                      config=config_json)
 
     num_episodes = 0
@@ -96,21 +107,25 @@ def main(agent_type:str,
         wandb.log(train_info)
         if (step + 1) % MODEL_SAVE_FREQ == 0:
             print("Step: {}, Saving model...".format(step))
-            agent.save("./models/cql_model_ver{}.pt".format(storage_ver))
+            agent.save("./models/cql_dataset_{}_ver{}.pt".format(dataset, storage_ver))
             eval_agent = copy.deepcopy(agent)
             eval_agent.actor.eval()
-            config_json["env_config"]["steps_per_episode"] = 100
+            config_json["env_config"]["steps_per_episode"] = 52
             config_json["env_config"]["episodes_per_session"] = EVAL_EPI_PER_SESSION
-            random_seeds = [1, 21, 35]
+            random_seed = 1
             avg_reward = 0
-            for random_seed in random_seeds:
+            for slice_list in slice_lists:
+                print("evaluating env: {}".format(slice_list))
+                config_json["env_config"]["slice_list"] = slice_list
                 config_json["env_config"]["random_seed"] = random_seed
-                eval_env = NetworkGymEnv(1, config_json, log=False)
+                eval_env = NetworkGymEnv(client_id, config_json, log=False)
                 normalized_eval_env = NormalizeObservation(eval_env)
-                env_reward, eval_info = evaluate(eval_agent, normalized_eval_env, n_episodes=1)
+                env_reward, eval_dict = evaluate(eval_agent, normalized_eval_env, n_episodes=1)
                 avg_reward += env_reward
+                wandb.log(eval_dict)
+                
                
-            avg_reward /= len(random_seeds)
+            avg_reward /= len(slice_lists)
             art = wandb.Artifact(f"{agent_type}-nn-{wandb.run.id}", type="model")
             art.add_file("./models/cql_model_ver{}.pt".format(storage_ver))
             if avg_reward > best_eval_reward:
