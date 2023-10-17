@@ -42,3 +42,4 @@ tzdata==2023.3
 urllib3==1.26.16
 wandb==0.15.8
 Werkzeug==2.3.7
+torch==1.11.0

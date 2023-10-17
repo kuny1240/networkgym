@@ -18,7 +18,7 @@
         {"num_users":12,"dedicated_rbg":0,"prioritized_rbg":13,"shared_rbg":25},
         {"num_users":5,"dedicated_rbg":0,"prioritized_rbg":0,"shared_rbg":25}
       ],
-      "slice_delay_thresh":[
+      "slice_delay_type":[
         0,
         1,
         0

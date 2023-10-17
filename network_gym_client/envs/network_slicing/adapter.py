@@ -115,7 +115,8 @@ class Adapter(network_gym_client.adapter.Adapter):
         rb_usages = np.array(df[df["name"] == "rb_usage"]["value"].to_list()[0])
         rb_usages = rb_usages[arg_sort_id]
         delay_violation_rates = np.array(df[df["name"] == "delay_violation"]["value"].to_list()[0])
-        delay_violation_rates1 = np.array(df[df["name"] == "delay_violation"]["value"].to_list()[0])
+        delay_violation_rates_1 = np.array(df[df["name"] == "delay_test_1_violation"]["value"].to_list()[0])
+        delay_violation_rates_2 = np.array(df[df["name"] == "delay_test_2_violation"]["value"].to_list()[0])
         slice_ids = np.array(df[df["name"] == "slice_id"]["value"].to_list()[0], dtype=np.int64)
         slice_ids = slice_ids[arg_sort_id]
         owds = np.array(df[(df["cid"] == "LTE") & (df["name"] == "owd")]["value"].to_list()[0])
@@ -144,12 +145,19 @@ class Adapter(network_gym_client.adapter.Adapter):
         max_rate = np.min(max_rates)
         # Group by slice_id and compute the sum/mean
         obs = np.zeros((self.num_features, len(self.config_json['env_config']['slice_list'])))
+        dvr_type = self.config_json['env_config']['slice_delay_type']
         for i in np.unique(slice_ids):
             # breakpoint()
+            if dvr_type[i] == 0:
+                slice_dvr = np.mean(delay_violation_rates[slice_ids == i])/100
+            elif dvr_type[i] == 1:
+                slice_dvr = np.mean(delay_violation_rates_1[slice_ids == i])/100
+            else:
+                slice_dvr = np.mean(delay_violation_rates_2[slice_ids == i])/100
             obs_slice = np.array([np.sum(rates[slice_ids == i])/np.sum(loads[slice_ids == i]), 
                                   np.sum(loads[slice_ids == i])/max_rate,
                                   np.sum(rb_usages[slice_ids == i])/100, 
-                                  np.mean(delay_violation_rates[slice_ids == i])/100, 
+                                  slice_dvr, 
                                   np.mean(owds[slice_ids == i])/1000])
             # obs_slice = np.array([np.sum(rates[slice_ids == i]), 
             #                       np.sum(rb_usages[slice_ids == i]), 

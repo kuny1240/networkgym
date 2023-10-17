@@ -7,11 +7,15 @@ import pandas as pd
 import h5py
 import os
 import torch
+import pdb
 
 class ReplayBuffer:
     def __init__(self, max_size, obs_shape, n_actions):
         self.mem_size = max_size
         self.mem_cntr = 0
+        self.saved_count = 0
+        self.saved_raw_count = 0
+
         # States for RL
         self.state_memory = np.zeros((self.mem_size, obs_shape))
         self.new_state_memory = np.zeros((self.mem_size, obs_shape))
@@ -71,19 +75,25 @@ class ReplayBuffer:
     def save_raw_data(self, file_name):
         
         min_size = min(self.mem_cntr, self.mem_size)
+        if min_size == self.saved_raw_count:
+            print("No new data to save.")
+            return
         if os.path.exists(file_name):
             with h5py.File(file_name, 'a') as f:
-                for dataset_name, memory in [('max_rates', self.max_rates[:min_size]),
-                                             ('loads', self.loads[:min_size]),
-                                             ('rates', self.rates[:min_size]),
-                                             ('rb_usages', self.rb_usages[:min_size]),
-                                             ('delay_violation_rates', self.delay_violation_rates[:min_size]),
-                                             ('delay_violation_rates_2', self.delay_violation_rates_2[:min_size]),
-                                             ('delay_violation_rates_3', self.delay_violation_rates_3[:min_size]),
-                                             ('one_way_delays', self.one_way_delays[:min_size]),
-                                             ('max_one_way_delays', self.max_one_way_delays[:min_size])]:
-                    f[dataset_name].resize((f[dataset_name].shape[0] + min_size), axis=0)
-                    f[dataset_name][-min_size:] = memory[:min_size]
+                for dataset_name, memory in [('max_rates', self.max_rates[self.saved_raw_count:min_size]),
+                                             ('loads', self.loads[self.saved_raw_count:min_size]),
+                                             ('rates', self.rates[self.saved_raw_count:min_size]),
+                                             ('rb_usages', self.rb_usages[self.saved_raw_count:min_size]),
+                                             ('delay_violation_rates', self.delay_violation_rates[self.saved_raw_count:min_size]),
+                                             ('delay_violation_rates_2', self.delay_violation_rates_2[self.saved_raw_count:min_size]),
+                                             ('delay_violation_rates_3', self.delay_violation_rates_3[self.saved_raw_count:min_size]),
+                                             ('one_way_delays', self.one_way_delays[self.saved_raw_count:min_size]),
+                                             ('max_one_way_delays', self.max_one_way_delays[self.saved_raw_count:min_size])]:
+                    
+                    f[dataset_name].resize((f[dataset_name].shape[0] + min_size - self.saved_raw_count), axis=0)
+                    new_size = min_size-self.saved_raw_count
+                    f[dataset_name][-new_size:] = memory[:]
+                self.saved_raw_count = min_size
         else:
             with h5py.File(file_name, 'a') as f:
                 for dataset_name, memory in  [('max_rates', self.max_rates[:min_size]),
@@ -98,6 +108,7 @@ class ReplayBuffer:
                     max_shape = (None,1e7)
                     chunks_shape = (1, memory.shape[1])  # This sets the chunk shape    
                     f.create_dataset(dataset_name, data=memory[:min_size],maxshape = max_shape,chunks=chunks_shape)
+                self.saved_raw_count = min_size
                 
                 
                 
@@ -109,15 +120,15 @@ class ReplayBuffer:
              if self.mem_cntr + load_data_len > self.mem_size:
                  raise ValueError("The buffer is full, please create a new buffer.")
              else:  
-                self.max_rates[self.mem_cntr:self.mem_cntr+load_data_len] = f['max_rates'][:]
-                self.loads[self.mem_cntr:self.mem_cntr+load_data_len] = f['loads'][:]
-                self.rates[self.mem_cntr:self.mem_cntr+load_data_len] = f['rates'][:]
-                self.rb_usages[self.mem_cntr:self.mem_cntr+load_data_len] = f['rb_usages'][:]
-                self.delay_violation_rates[self.mem_cntr:self.mem_cntr+load_data_len] = f['delay_violation_rates'][:]
-                self.delay_violation_rates_2[self.mem_cntr:self.mem_cntr+load_data_len] = f['delay_violation_rates_2'][:]
-                self.delay_violation_rates_3[self.mem_cntr:self.mem_cntr+load_data_len] = f['delay_violation_rates_3'][:]
-                self.one_way_delays[self.mem_cntr:self.mem_cntr+load_data_len] = f['one_way_delays'][:]
-                self.max_one_way_delays[self.mem_cntr:self.mem_cntr+load_data_len] = f['max_one_way_delays'][:]
+                self.max_rates[self.mem_cntr:self.mem_cntr+load_data_len] = f['max_rates'][:load_data_len]
+                self.loads[self.mem_cntr:self.mem_cntr+load_data_len] = f['loads'][:load_data_len]
+                self.rates[self.mem_cntr:self.mem_cntr+load_data_len] = f['rates'][:load_data_len]
+                self.rb_usages[self.mem_cntr:self.mem_cntr+load_data_len] = f['rb_usages'][:load_data_len]
+                self.delay_violation_rates[self.mem_cntr:self.mem_cntr+load_data_len] = f['delay_violation_rates'][:load_data_len]
+                self.delay_violation_rates_2[self.mem_cntr:self.mem_cntr+load_data_len] = f['delay_violation_rates_2'][:load_data_len]
+                self.delay_violation_rates_3[self.mem_cntr:self.mem_cntr+load_data_len] = f['delay_violation_rates_3'][:load_data_len]
+                self.one_way_delays[self.mem_cntr:self.mem_cntr+load_data_len] = f['one_way_delays'][:load_data_len]
+                self.max_one_way_delays[self.mem_cntr:self.mem_cntr+load_data_len] = f['max_one_way_delays'][:load_data_len]
             
         
 
@@ -127,15 +138,22 @@ class ReplayBuffer:
         otherwise, create a new file.
         '''
         min_size = min(self.mem_cntr, self.mem_size)
+        if min_size == self.saved_count:
+            print("No new data to save.")
+            return
         if os.path.exists(file_name):
             with h5py.File(file_name, 'a') as f:
-                for dataset_name, memory in [('states', self.state_memory[:min_size]), 
-                                            ('actions', self.action_memory[:min_size]), 
-                                            ('rewards', self.reward_memory[:min_size]), 
-                                            ('next_states', self.new_state_memory[:min_size]), 
-                                            ('dones', self.terminal_memory[:min_size])]:
-                    f[dataset_name].resize((f[dataset_name].shape[0] + min_size), axis=0)
-                    f[dataset_name][-min_size:] = memory[:min_size]
+                for dataset_name, memory in [('states', self.state_memory[self.saved_count:min_size]), 
+                                            ('actions', self.action_memory[self.saved_count:min_size]), 
+                                            ('rewards', self.reward_memory[self.saved_count:min_size]), 
+                                            ('next_states', self.new_state_memory[self.saved_count:min_size]), 
+                                            ('dones', self.terminal_memory[self.saved_count:min_size])]:
+                    # breakpoint()
+                    f[dataset_name].resize((f[dataset_name].shape[0] + min_size - self.saved_count), axis=0)
+                    # breakpoint()
+                    new_size = min_size-self.saved_count
+                    f[dataset_name][-new_size:] = memory[:]
+                self.saved_count = min_size
         else:
             with h5py.File(file_name, 'w') as f:
                 # Assuming the datasets are 2D arrays. Adjust the shape, maxshape, and chunks as needed.
@@ -154,6 +172,7 @@ class ReplayBuffer:
                         max_shape = (None,1e7)
                         chunks_shape = (1, memory.shape[1])  # This sets the chunk shape    
                     f.create_dataset(dataset_name, data=memory[:min_size],maxshape = max_shape,chunks=chunks_shape)
+                self.saved_count = min_size 
 
 
 
@@ -166,11 +185,12 @@ class ReplayBuffer:
         
         with h5py.File(file_name, "r") as f:
              #Detect none zero data
-             idx = (f['rewards'][:] != 0)
+             idx = f['rewards'][:] != 0
              load_data_len = idx.sum()
+            #  print(idx[:load_data_len].sum(), idx.sum())
              if self.mem_cntr + load_data_len > self.mem_size:
                  raise ValueError("The buffer is full, please create a new buffer.")
-             else:  
+             else:
                 self.state_memory[self.mem_cntr:self.mem_cntr+load_data_len] = f['states'][:load_data_len]
                 self.action_memory[self.mem_cntr:self.mem_cntr+load_data_len] = f['actions'][:load_data_len]
                 self.reward_memory[self.mem_cntr:self.mem_cntr+load_data_len] = f['rewards'][:load_data_len]

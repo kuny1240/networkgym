@@ -89,7 +89,7 @@ def main(agent_type:str,
     target_entropy = -np.prod((2,)).item()
     # breakpoint()
     agent = CQL(state_dim=15, action_dim=2, hidden_dim=hidden_dim, target_entropy=target_entropy,
-                q_n_hidden_layers=2, max_action=1, qf_lr=3e-3, policy_lr=6e-4,device="cuda:0")
+                q_n_hidden_layers=1, max_action=1, qf_lr=3e-4, policy_lr=5e-5,device="cuda:0", bc_steps=0)
     run = wandb.init(project="network-slicing-offline",
                name=f"{agent_type}-nn-{dataset}-ver{storage_ver}", 
                      config=config_json)
@@ -101,13 +101,13 @@ def main(agent_type:str,
     # Evaluate every 500 steps, same as model saving frequency
     for step in progress_bar:
         
-        batch = buffer.sample(256)
+        batch = buffer.sample(64)
         # breakpoint()
         train_info = agent.learn(*batch)
         wandb.log(train_info)
         if (step + 1) % MODEL_SAVE_FREQ == 0:
             print("Step: {}, Saving model...".format(step))
-            agent.save("./models/cql_dataset_{}_ver{}.pt".format(dataset, storage_ver))
+            agent.save("./models/cql_dataset_{}_{}_ver{}.pt".format(dataset,train_random_seed, storage_ver))
             eval_agent = copy.deepcopy(agent)
             eval_agent.actor.eval()
             config_json["env_config"]["steps_per_episode"] = 52
@@ -127,7 +127,7 @@ def main(agent_type:str,
                
             avg_reward /= len(slice_lists)
             art = wandb.Artifact(f"{agent_type}-nn-{wandb.run.id}", type="model")
-            art.add_file("./models/cql_model_ver{}.pt".format(storage_ver))
+            art.add_file("./models/cql_dataset_{}_{}_ver{}.pt".format(dataset,train_random_seed, storage_ver))
             if avg_reward > best_eval_reward:
                 best_eval_reward = avg_reward
                 wandb.log_artifact(art, aliases=["latest", "best"])

@@ -57,6 +57,7 @@ def evaluate(model, env, n_episodes):
         pbar = tqdm(range(200))
         for _ in pbar:
             action = model.predict(obs, device = "cuda:0")
+            action = np.exp(action)/np.sum(np.exp(action))
             obs, reward, terminated, truncated, info = env.step(action)
             done = truncated
             total_reward += reward
@@ -72,6 +73,21 @@ def evaluate(model, env, n_episodes):
     return avg_reward, log_dict
 
 
+def dataset_to_obs(dataset):
+    
+    slice_num = len(dataset["max_rates"])
+    obs = np.zeros((5, slice_num))
+    max_rate = np.min(dataset["max_rates"])
+    for i in range(slice_num):
+            # breakpoint()
+        obs_slice = np.array([dataset["rates"][i]/dataset["loads"][i],
+                              dataset["loads"][i]/max_rate,
+                              dataset["rb_usages"][i]/100,
+                              dataset["delay_violation_rates"][i]/100,
+                              dataset["one_way_delays"][i]/1000])
+        obs[:, i] = obs_slice
+        
+    return obs.flatten()
 
 def info_to_dataset(info):
     
@@ -92,7 +108,7 @@ def info_to_dataset(info):
     owds = np.array(df[(df["cid"] == "LTE") & (df["name"] == "owd")]["value"].to_list()[0])
     max_owds = np.array(df[(df["cid"] == "LTE") & (df["name"] == "max_owd")]["value"].to_list()[0])
     try:
-        assert len(max_rates) == len(loads) == len(rates) == len(rb_usages) == len(dvr) == len(slice_ids) == len(owds) == len(max_owds)
+        assert len(max_rates) == len(loads) == len(rates) == len(rb_usages) == len(delay_violation_rates) == len(slice_ids) == len(owds) == len(max_owds)
     except:
         length = len(slice_ids)
         # Create a list of the arrays
@@ -111,7 +127,7 @@ def info_to_dataset(info):
             
             
     slice_num = len(np.unique(slice_ids))
-    max_rates_per_slice = [np.max(max_rates[slice_ids == i]) for i in range(slice_num)]
+    max_rates_per_slice = [np.min(max_rates[slice_ids == i]) for i in range(slice_num)]
     loads_per_slice = [np.sum(loads[slice_ids == i]) for i in range(slice_num)]
     rates_per_slice = [np.sum(rates[slice_ids == i]) for i in range(slice_num)]
     rb_usages_per_slice = [np.sum(rb_usages[slice_ids == i]) for i in range(slice_num)]

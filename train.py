@@ -12,6 +12,7 @@ import os
 import fire
 import wandb
 import copy
+import time
 from utils.buffer import ReplayBuffer
 from CleanRL_agents.sac import SACAgent
 from tqdm import tqdm
@@ -72,7 +73,7 @@ def main(agent_type:str,
          hidden_dim = 64,
          steps_per_episode = 100,
          episode_per_session = 5,
-         actor_lr = 6e-5,
+         actor_lr = 1e-4,
          critic_lr = 3e-4,
          num_steps = 12000,
          random_seed = 1
@@ -127,7 +128,7 @@ def main(agent_type:str,
         action = agent.predict(obs)
         # if np.sum(action) >= 1: # Illegal action
         #     action = np.exp(action)/np.sum(np.exp(action))
-        # action = np.exp(action)/np.sum(np.exp(action))  # softmax
+        action = np.exp(action)/np.sum(np.exp(action))  # softmax
         # action = env.action_space.sample()  # agent policy that uses the observation and info
         nxt_obs, reward, terminated, truncated, info = normalized_env.step(action=action)
         buffer.store(obs, action, reward, nxt_obs, truncated)
@@ -136,6 +137,8 @@ def main(agent_type:str,
         log = info_to_log(info)
         wandb.log({"rewards/training_reward": reward})
         wandb.log(log)
+        dataset = info_to_dataset(info)
+        buffer.store_raw_measurements(dataset)
         
         
         if buffer.mem_cntr > 256:
@@ -178,7 +181,8 @@ def main(agent_type:str,
                     wandb.log_artifact(art)
                 print("Step: {}, Eval Reward: {}".format(step, avg_reward))
                 wandb.log({"rewards/eval_reward": avg_reward})
-                buffer.save_buffer("./dataset/offline_data_heavy_traffic_ver2.h5")
+                buffer.save_buffer("./dataset/offline_train_buffer.h5")
+                buffer.save_raw_data("./dataset/offline_train_raw_data.h5")
                 storage_ver += 1
                 slice_list = random.sample(slice_lists, 1)
                 config_json["env_config"]["slice_list"] = slice_list[0]

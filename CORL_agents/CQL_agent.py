@@ -77,6 +77,7 @@ class ReparameterizedTanhGaussian(nn.Module):
             )
 
         if deterministic:
+            # breakpoint()
             action_sample = torch.tanh(mean)
         else:
             action_sample = action_distribution.rsample()
@@ -201,6 +202,7 @@ class FullyConnectedQFunction(nn.Module):
         q_values = torch.squeeze(self.network(input_tensor), dim=-1)
         if multiple_actions:
             q_values = q_values.reshape(batch_size, -1)
+        # q_values = self.network(torch.cat([observations, actions], 1))
         return q_values
     
     
@@ -232,14 +234,14 @@ class ContinuousCQL:
         policy_lr: bool = 3e-5,
         qf_lr: bool = 3e-4,
         soft_target_update_rate: float = 5e-3,
-        bc_steps=100000,
+        bc_steps=6000,
         target_update_period: int = 1,
         cql_n_actions: int = 10,
         cql_importance_sample: bool = True,
         cql_lagrange: bool = False,
         cql_target_action_gap: float = -1.0,
         cql_temp: float = 1.0,
-        cql_alpha: float = 5.0,
+        cql_alpha: float = 3.0,
         cql_max_target_backup: bool = False,
         cql_clip_diff_min: float = -np.inf,
         cql_clip_diff_max: float = np.inf,
@@ -277,7 +279,7 @@ class ContinuousCQL:
         self.target_critic_1 = deepcopy(self.critic_1).to(device)
         self.target_critic_2 = deepcopy(self.critic_2).to(device)
 
-        self.actor = TanhGaussianPolicy(state_dim,action_dim,max_action,hidden_dim,1.0,orthogonal_init).to(device)
+        self.actor = TanhGaussianPolicy(state_dim,action_dim,max_action,hidden_dim,1.0,-1.0,orthogonal_init).to(device)
 
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), policy_lr)
 
@@ -305,6 +307,7 @@ class ContinuousCQL:
     def predict(self, state: np.ndarray, device: str = "cuda:0"):
         state = torch.tensor(state.reshape(1, -1), device=device, dtype=torch.float32)
         actions = self.actor.act(state, device=device)
+        # actions = np.exp(actions)/np.sum(np.exp(actions))
         return actions
 
     def _alpha_and_alpha_loss(self, observations: torch.Tensor, log_pi: torch.Tensor):
@@ -327,8 +330,9 @@ class ContinuousCQL:
         log_pi: torch.Tensor,
     ) -> torch.Tensor:
         if self.total_it <= self.bc_steps:
-            log_probs = self.actor.log_prob(observations, actions)
-            policy_loss = (alpha * log_pi - log_probs).mean()
+            # log_probs = self.actor.log_prob(observations, actions)
+            # policy_loss = (alpha * log_pi - log_probs).mean()
+            policy_loss = F.mse_loss(new_actions, actions)
         else:
             q_new_actions = torch.min(
                 self.critic_1(observations, new_actions),
@@ -374,9 +378,10 @@ class ContinuousCQL:
         if self.backup_entropy:
             target_q_values = target_q_values - alpha * next_log_pi
 
-        target_q_values = target_q_values.unsqueeze(-1)
+        # breakpoint()
+        # target_q_values = target_q_values.unsqueeze(-1)
         td_target = rewards.flatten() + (1.0 - dones.flatten()) * self.discount * target_q_values.detach()
-        td_target = td_target.squeeze(-1)
+        # td_target = td_target.squeeze(-1)
         qf1_loss = F.mse_loss(q1_predicted, td_target.detach())
         qf2_loss = F.mse_loss(q2_predicted, td_target.detach())
         # CQL
@@ -384,7 +389,7 @@ class ContinuousCQL:
         action_dim = actions.shape[-1]
         cql_random_actions = actions.new_empty(
             (batch_size, self.cql_n_actions, action_dim), requires_grad=False
-        ).uniform_(-1, 1)
+        ).uniform_(0, 1)
         cql_current_actions, cql_current_log_pis = self.actor(
             observations, repeat=self.cql_n_actions
         )
@@ -402,6 +407,7 @@ class ContinuousCQL:
 
         cql_q1_rand = self.critic_1(observations, cql_random_actions)
         cql_q2_rand = self.critic_2(observations, cql_random_actions)
+        # breakpoint ()
         cql_q1_current_actions = self.critic_1(observations, cql_current_actions)
         cql_q2_current_actions = self.critic_2(observations, cql_current_actions)
         cql_q1_next_actions = self.critic_1(observations, cql_next_actions)
