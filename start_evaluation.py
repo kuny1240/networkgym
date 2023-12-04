@@ -9,6 +9,7 @@ from network_gym_client import Env as NetworkGymEnv
 from gymnasium.wrappers import NormalizeObservation
 from CleanRL_agents.sac import SACAgent
 from CORL_agents import CQL
+# from CQL_agent import ContinuousCQL as CQL
 from tqdm import tqdm
 from utils.utils import *
 import torch
@@ -37,6 +38,18 @@ def baseline(loads):
     loads = [load / total_load for load in loads]
     
     return np.array(loads)
+
+
+def baseline_delay(delays):
+    '''
+    propotionally allocate rb resource to slices accordling to their traffic load
+    '''
+    
+    total_delay = sum(np.exp(delays))
+    
+    action = [np.exp(delay)/total_delay for delay in delays]
+
+    return np.array(action)
 
 
 slice_lists = [
@@ -68,25 +81,26 @@ slice_lists = [
     
 ]
 
-slice_lists = [
-    [
-        {"num_users":20,"dedicated_rbg":0,"prioritized_rbg":12,"shared_rbg":25},
-        {"num_users":5,"dedicated_rbg":0,"prioritized_rbg":13,"shared_rbg":25},
-        {"num_users":6,"dedicated_rbg":0,"prioritized_rbg":0,"shared_rbg":25}
-    ],
+# slice_lists = [
+#     [
+#         {"num_users":20,"dedicated_rbg":0,"prioritized_rbg":12,"shared_rbg":25},
+#         {"num_users":5,"dedicated_rbg":0,"prioritized_rbg":13,"shared_rbg":25},
+#         {"num_users":6,"dedicated_rbg":0,"prioritized_rbg":0,"shared_rbg":25}
+#     ],
     
-]
+# ]
 
 
 config_json["env_config"]["steps_per_episode"] = steps_per_episode
 config_json["env_config"]["episodes_per_session"] = episode_per_session
 labels = ["6_20","11_15","13_13","15_11","20_6"]
-labels = ["20_5"]
-eval_methods = ["baseline", "sac", "cql"]
+# labels = ["20_5"]
+# eval_methods = ["cql", "cql_throughput", "cql_res"]
+eval_methods = ["baseline_delay", "cql", "baseline", "sac"]
 # eval_methods = ["sac"]
 # eval_methods = ["no_scheduler"]
-random_seeds = [0, 1, 233, 1240]
-random_seeds = [1240]
+random_seeds = [233, 1240]
+# random_seeds = [1240]
 
 metrics_data = {method: {} for method in eval_methods}
 for random_seed in random_seeds:
@@ -97,11 +111,11 @@ for random_seed in random_seeds:
         for eval_method in eval_methods:
             config_json["rl_config"]["agent"] = eval_method
             env = NetworkGymEnv(0, config_json, log=False) # make a network env using pass client id and configure file arguements.
-            normalized_env = NormalizeObservation(env) # normalize the observation
-            # normalized_env = env
+            # normalized_env = NormalizeObservation(env) # normalize the observation
+            normalized_env = env
             metrics_df = pd.DataFrame()
             
-            run = wandb.init(project="netgym_eval_new", 
+            run = wandb.init(project="netgym_eval_diffsla", 
                             group=f"{env_name}_{label}", 
                             tags=[eval_method, label], 
                             name=f"{eval_method}_{label}_scen_1", 
@@ -125,7 +139,17 @@ for random_seed in random_seeds:
             elif eval_method == "cql":
                 agent = CQL(state_dim=15, action_dim=2, hidden_dim=64, target_entropy=-2,
                             q_n_hidden_layers=1, max_action=1, qf_lr=3e-4, policy_lr=6e-5,device="cuda:0")
-                agent.load("./models/cql_dataset_sac_best.pt")
+                agent.load("./models/cql_dataset_mixed_best.pt")
+                agent.actor.eval()
+            elif eval_method == "cql_throughput":
+                agent = CQL(state_dim=15, action_dim=2, hidden_dim=64, target_entropy=-2,
+                            q_n_hidden_layers=1, max_action=1, qf_lr=3e-4, policy_lr=6e-5,device="cuda:0")
+                agent.load("./models/cql_dataset_mixed_throughput_best.pt")
+                agent.actor.eval()
+            elif eval_method == "cql_res":
+                agent = CQL(state_dim=15, action_dim=2, hidden_dim=64, target_entropy=-2,
+                            q_n_hidden_layers=1, max_action=1, qf_lr=3e-4, policy_lr=6e-5,device="cuda:0")
+                agent.load("./models/cql_dataset_mixed_res_best.pt")
                 agent.actor.eval()
                 
             progress_bar = tqdm(range(num_steps))
@@ -152,10 +176,14 @@ for random_seed in random_seeds:
                     loads_per_slice = [np.sum(loads[slice_ids == i]) for i in range(2)]
                     dvr_loads = dvr_per_slice[:2]
                     action = baseline(loads_per_slice)  # agent policy that uses the observation and info
+                elif eval_method == "baseline_delay":
+                    dvr_loads = dvr_per_slice[:2]
+                    action = baseline_delay(dvr_loads)
+
                 elif eval_method == "sac":
                     action = sac_agent.predict(obs)
                     action = np.exp(action)/np.sum(np.exp(action))
-                elif eval_method == "cql":
+                elif "cql" in eval_method:
                     action = agent.predict(obs)
                     action = np.exp(action)/np.sum(np.exp(action))
                 else:
@@ -167,7 +195,7 @@ for random_seed in random_seeds:
                 avg_dvr += np.array(dvr_per_slice)
                 avg_rbu += np.array(rbu_per_slice)
                 logs = info_to_log(info)
-                print(logs)
+                # print(logs)
                 metrics_df = metrics_df.append(logs, ignore_index=True)
                 logs.update({"step": step})
                 
@@ -192,18 +220,5 @@ for random_seed in random_seeds:
             run.log(log_dict)
             run.finish()
 
-
-# summary_table = wandb.Table(columns=['Method', 'Metric', 'Mean', 'Std. Dev.'])
-# for method, data in metrics_data.items():
-#     for label, df in data.items():
-#         for metric in df.columns:
-#             if metric != 'step':
-#                 mean = df[metric].mean()
-#                 std = df[metric].std()
-#                 summary_table.add_data(method, f"{label}_{metric}", mean, std)
-# wandb.log({"Summary": summary_table})
-
-# json.dump(metrics_data, open("metrics_data.json", "w"))
-        
         
 wandb.finish()

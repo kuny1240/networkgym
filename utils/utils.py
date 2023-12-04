@@ -151,3 +151,18 @@ def info_to_dataset(info):
     )
     
     return data
+
+
+def vary_rewards(observations, 
+                 p, 
+                 alpha, 
+                 delta):
+    
+    
+    new_rewards = np.zeros(observations.shape[0])
+    
+    for i in range(3):
+    
+        new_rewards += p[i] *(observations[:, i*5] - alpha * observations[:, 2+ i*5] - delta * observations[:, 3+i*5])
+
+    return new_rewards

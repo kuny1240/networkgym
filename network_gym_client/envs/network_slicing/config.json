@@ -20,7 +20,7 @@
       ],
       "slice_delay_type":[
         0,
-        1,
+        2,
         0
       ],
       "user_random_walk":{
@@ -46,7 +46,7 @@
       "qos_requirement": {
         "delay_bound_ms": 100,
         "delay_test_1_thresh_ms": 50,
-        "delay_test_2_thresh_ms": 10
+        "delay_test_2_thresh_ms": 30
       },
       "GMA": {
           "downlink_mode": "auto",

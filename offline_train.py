@@ -69,7 +69,7 @@ def main(agent_type:str,
          hidden_dim = 64,
          steps_per_episode = 10,
          episode_per_session = 1,
-         random_seed = 1,
+         random_seed = 1240,
          ):
 
     # client_id = 1
@@ -83,7 +83,11 @@ def main(agent_type:str,
     config_json["env_config"]["steps_per_episode"] = steps_per_episode
     config_json["env_config"]["episodes_per_session"] = episode_per_session
     buffer = ReplayBuffer(max_size=1000000, obs_shape=15, n_actions=2)
-    buffer.load_buffer(f"./dataset/{dataset}_buffer.h5")
+    if dataset == "mixed":
+        for d in ["sac", "baseline", "baseline_delay"]:
+            buffer.load_buffer(f"./dataset/{d}_buffer_new.h5")
+    else:
+        buffer.load_buffer(f"./dataset/{dataset}_buffer_new.h5")
     # buffer.nomarlize_states()
     # Create the environment
     target_entropy = -np.prod((2,)).item()
@@ -103,11 +107,13 @@ def main(agent_type:str,
         
         batch = buffer.sample(64)
         # breakpoint()
+        new_reward = vary_rewards(batch[0], [0.5, 0.5, 0], 1, 4)
+        batch = (batch[0], batch[1], new_reward, batch[3], batch[4])
         train_info = agent.learn(*batch)
         wandb.log(train_info)
         if (step + 1) % MODEL_SAVE_FREQ == 0:
             print("Step: {}, Saving model...".format(step))
-            agent.save("./models/cql_dataset_{}_{}_ver{}.pt".format(dataset,train_random_seed, storage_ver))
+            agent.save("./models/cql_dataset_{}_{}_ver{}_res.pt".format(dataset,train_random_seed, storage_ver))
             eval_agent = copy.deepcopy(agent)
             eval_agent.actor.eval()
             config_json["env_config"]["steps_per_episode"] = 52
@@ -119,15 +125,15 @@ def main(agent_type:str,
                 config_json["env_config"]["slice_list"] = slice_list
                 config_json["env_config"]["random_seed"] = random_seed
                 eval_env = NetworkGymEnv(client_id, config_json, log=False)
-                normalized_eval_env = NormalizeObservation(eval_env)
-                env_reward, eval_dict = evaluate(eval_agent, normalized_eval_env, n_episodes=1)
+                # normalized_eval_env = NormalizeObservation(eval_env)
+                env_reward, eval_dict = evaluate(eval_agent, eval_env, n_episodes=1)
                 avg_reward += env_reward
                 wandb.log(eval_dict)
                 
                
             avg_reward /= len(slice_lists)
             art = wandb.Artifact(f"{agent_type}-nn-{wandb.run.id}", type="model")
-            art.add_file("./models/cql_dataset_{}_{}_ver{}.pt".format(dataset,train_random_seed, storage_ver))
+            art.add_file("./models/cql_dataset_{}_{}_ver{}_res.pt".format(dataset,train_random_seed, storage_ver))
             if avg_reward > best_eval_reward:
                 best_eval_reward = avg_reward
                 wandb.log_artifact(art, aliases=["latest", "best"])
